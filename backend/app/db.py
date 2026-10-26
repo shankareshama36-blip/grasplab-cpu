@@ -3,6 +3,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./grasplab.db")
+if not DATABASE_URL:
+    DATABASE_URL = "sqlite:///./grasplab.db"
 
 # Render and cloud providers supply postgres:// which SQLAlchemy 1.4+ expects as postgresql://
 if DATABASE_URL.startswith("postgres://"):
