@@ -43,3 +43,55 @@ Computer architecture is usually taught as slides and diagrams. GraspLab makes e
 ---
 
 ## Project Structure
+
+```text
+GraspLab/
+├── backend/            # FastAPI REST API, auth (JWT + bcrypt), db, schemas, models
+├── engine/             # Pure-logic CPU simulation engine (ISA, assembler, cpu, pipeline, performance)
+├── src/                # React 18 + TypeScript + Pure CSS dark UI & dashboards
+│   ├── components/     # Modals, Skeletons, Toasts
+│   ├── context/        # AuthContext, ToastContext
+│   ├── pages/          # LoginPage, SignupPage, StudentDashboard, InstructorDashboard
+│   │   └── tabs/       # LearnTab, BuildTab, OptimizeTab
+│   └── styles/         # Glassmorphism design system & CSS theme
+├── tests/              # Pytest suite verifying DB, Auth, Engine, and Multi-Tenant Isolation
+├── render.yaml         # Full-stack Render deployment manifest
+└── pyproject.toml      # Python project configuration
+```
+
+---
+
+## Quick Start (Local Setup)
+
+### 1. Backend Service
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn backend.main:app --reload --port 8000
+```
+
+### 2. Frontend Application
+```bash
+npm install
+npm run dev
+```
+Open **[http://localhost:5173](http://localhost:5173)** in your browser.
+
+---
+
+## 🔑 Free Pre-Seeded Demo Accounts
+
+Anyone can test the lab immediately using the pre-seeded accounts or the **1-Click Demo** buttons on the login screen:
+
+- **Student Account**: `demo@grasplab.dev` (Password: `demo1234`)
+- **Alternative Student**: `student@grasplab.dev` (Password: `student123`)
+- **Instructor Account**: `instructor@grasplab.dev` (Password: `instructor123`)
+
+---
+
+## 🧪 Automated Testing
+```bash
+.venv/bin/pytest -q
+npm run build
+```
