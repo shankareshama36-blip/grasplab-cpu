@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Optional, Any, Set
-from engine.isa import Instruction
+from app.engine.isa import Instruction
 
 
 @dataclass

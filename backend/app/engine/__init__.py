@@ -3,11 +3,11 @@ GraspLab Pure Computer Architecture Simulation Engine.
 Independent of web frameworks and database layers.
 """
 
-from engine.isa import Instruction, PRESETS, CANONICAL_REGISTERS
-from engine.assembler import Assembler, AssemblyError
-from engine.cpu import CPU, CPUState
-from engine.pipeline import PipelineEngine, PipelineState, Hazard
-from engine.performance import PerformanceCalculator, NumberSystems
+from app.engine.isa import Instruction, PRESETS, CANONICAL_REGISTERS
+from app.engine.assembler import Assembler, AssemblyError
+from app.engine.cpu import CPU, CPUState
+from app.engine.pipeline import PipelineEngine, PipelineState, Hazard
+from app.engine.performance import PerformanceCalculator, NumberSystems
 
 __all__ = [
     "Instruction",

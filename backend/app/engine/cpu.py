@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Optional, Any
-from engine.isa import Instruction, CANONICAL_REGISTERS
+from app.engine.isa import Instruction, CANONICAL_REGISTERS
 
 
 @dataclass

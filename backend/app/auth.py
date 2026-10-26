@@ -5,8 +5,8 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from backend.db import get_db
-from backend.models import User
+from app.db import get_db
+from app.models import User
 
 SECRET_KEY = os.getenv("JWT_SECRET", "grasplab-jwt-production-secret-key-32-bytes-long")
 ALGORITHM = "HS256"

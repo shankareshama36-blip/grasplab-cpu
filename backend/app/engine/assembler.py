@@ -1,6 +1,6 @@
 import re
 from typing import List, Dict, Tuple, Optional, Any
-from engine.isa import (
+from app.engine.isa import (
     Instruction,
     CANONICAL_REGISTERS,
     PRESETS,
