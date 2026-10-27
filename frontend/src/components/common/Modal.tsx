@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 interface ModalProps {
   isOpen: boolean;
@@ -8,6 +8,16 @@ interface ModalProps {
 }
 
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -20,20 +30,23 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(6px)',
-        padding: '1rem',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        padding: '1.25rem',
       }}
       onClick={onClose}
     >
       <div
-        className="glass-panel"
+        className="glass-panel fade-in"
         style={{
           width: '100%',
           maxWidth: '540px',
-          padding: '1.75rem',
+          padding: '2rem',
           position: 'relative',
-          backgroundColor: 'var(--bg-surface-elevated)',
-          border: '1px solid var(--border)',
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: '16px',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(99, 102, 241, 0.2)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -42,14 +55,29 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            marginBottom: '1.25rem',
+            marginBottom: '1.5rem',
+            paddingBottom: '0.75rem',
+            borderBottom: '1px solid var(--border)',
           }}
         >
-          <h3 style={{ fontSize: '1.15rem', fontWeight: 600 }}>{title}</h3>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+            {title}
+          </h3>
           <button
             onClick={onClose}
             className="btn btn-secondary btn-sm"
-            style={{ padding: '0.2rem 0.5rem', borderRadius: '50%' }}
+            style={{
+              width: '32px',
+              height: '32px',
+              padding: 0,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1rem',
+              color: 'var(--text-muted)',
+            }}
+            aria-label="Close modal"
           >
             ✕
           </button>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Program, CPUState } from '../../types';
 import { api } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
@@ -73,9 +73,20 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
 
   // Simulation State
   const [cpuState, setCpuState] = useState<CPUState | null>(null);
+  const [prevCpuState, setPrevCpuState] = useState<CPUState | null>(null);
   const [stepIndex, setStepIndex] = useState<number>(0);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [memoryFilter, setMemoryFilter] = useState<string>('');
+
+  // Editor Line Numbers Sync
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
+
+  const handleEditorScroll = () => {
+    if (textareaRef.current && gutterRef.current) {
+      gutterRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  };
 
   useEffect(() => {
     if (currentProgram) {
@@ -83,9 +94,9 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
       setPreset(currentProgram.isa_preset || 'RISC-V');
       setProgramName(currentProgram.name);
       setCpuState(null);
+      setPrevCpuState(null);
       setStepIndex(0);
     } else {
-      // Default sample
       const def = SAMPLE_PROGRAMS.array_sum;
       setSourceCode(def.code);
       setPreset(def.preset);
@@ -115,6 +126,7 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
       setPreset(sample.preset);
       setProgramName(sample.name);
       setCpuState(null);
+      setPrevCpuState(null);
       setStepIndex(0);
       showToast(`Loaded sample "${sample.name}"`, 'info');
     }
@@ -130,6 +142,7 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
         assembly_source: sourceCode,
         step_index: stepIndex,
       });
+      setPrevCpuState(cpuState);
       setCpuState(res.cpu_state);
       setStepIndex(res.step_index);
     } catch (err: any) {
@@ -148,6 +161,7 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
         assembly_source: sourceCode,
         max_cycles: 250,
       });
+      setPrevCpuState(cpuState);
       setCpuState(res.final_cpu_state);
       setStepIndex(res.cycles);
       showToast(`Execution finished in ${res.cycles} cycles (CPI: ${res.cpi})`, 'success');
@@ -159,6 +173,7 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
   };
 
   const handleReset = () => {
+    setPrevCpuState(null);
     setCpuState(null);
     setStepIndex(0);
     showToast('CPU State reset to cycle 0', 'info');
@@ -189,6 +204,9 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
     branch_taken: false,
   };
 
+  const lines = sourceCode.split('\n');
+  const lineCount = Math.max(1, lines.length);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Top Toolbar */}
@@ -201,6 +219,7 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '1rem',
+          borderRadius: '12px',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -223,7 +242,7 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
             <option value="x86">x86 ISA</option>
           </select>
           {currentProgram && (
-            <button onClick={handleSaveProgram} className="btn btn-secondary btn-sm">
+            <button onClick={handleSaveProgram} className="btn btn-secondary btn-sm" title="Save changes">
               💾 Save
             </button>
           )}
@@ -231,14 +250,13 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
 
         {/* Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          {/* Sample loader */}
           <select
             className="form-select"
             defaultValue=""
             onChange={(e) => {
               if (e.target.value) handleLoadSample(e.target.value);
             }}
-            style={{ width: '190px' }}
+            style={{ width: '200px' }}
           >
             <option value="" disabled>Load Sample Program...</option>
             <option value="array_sum">Array Sum with Branch</option>
@@ -264,44 +282,74 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
         </div>
       </div>
 
-      {/* Main 70/30 Layout */}
+      {/* Main 70/30 Layout with distinct --bg-surface, --border, border-radius: 12px */}
       <div className="layout-70-30">
-        {/* Left Column (70%): Editor + SVG Datapath */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {/* Assembly Code Editor */}
-          <div className="glass-panel" style={{ padding: '1.25rem' }}>
+        {/* Left Column (70%): Real Code Editor + SVG Datapath + Console */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Assembly Code Editor Shell */}
+          <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '12px' }}>
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '0.75rem',
+                marginBottom: '0.85rem',
               }}
             >
-              <h3 style={{ fontSize: '0.95rem', fontWeight: 600 }}>Assembly Source Editor</h3>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                PC: <strong style={{ color: 'var(--accent-cyan)' }}>{cpuState ? cpuState.pc : 0}</strong> | Cycles: <strong>{cpuState ? cpuState.cycles : 0}</strong>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.1rem' }}>📝</span>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Assembly Source Editor
+                </h3>
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                PC: <strong style={{ color: 'var(--accent-cyan)' }}>{cpuState ? cpuState.pc : 0}</strong>{' '}
+                | Cycles: <strong style={{ color: 'var(--accent)' }}>{cpuState ? cpuState.cycles : 0}</strong>
               </div>
             </div>
 
-            <textarea
-              rows={12}
-              className="form-textarea"
-              value={sourceCode}
-              onChange={(e) => setSourceCode(e.target.value)}
-              placeholder="; Enter assembly instructions here..."
-              style={{
-                width: '100%',
-                backgroundColor: 'rgba(8, 11, 17, 0.95)',
-                fontSize: '0.9rem',
-                lineHeight: 1.5,
-                border: '1px solid var(--border)',
-              }}
-            />
+            {/* Real Code Editor with Line Numbers Gutter */}
+            <div className="code-editor-shell">
+              <div className="code-editor-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <span style={{ color: '#a5b4fc', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                    {programName ? programName.toLowerCase().replace(/\s+/g, '_') : 'main'}.s
+                  </span>
+                  <span className="badge badge-blue" style={{ fontSize: '0.65rem' }}>
+                    {preset}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.75rem' }}>
+                  <span>{lineCount} lines</span>
+                  <span>UTF-8</span>
+                </div>
+              </div>
+
+              <div className="code-editor-body">
+                {/* Gutter with line numbers */}
+                <div ref={gutterRef} className="code-editor-gutter">
+                  {Array.from({ length: lineCount }, (_, i) => (
+                    <div key={i + 1}>{i + 1}</div>
+                  ))}
+                </div>
+
+                {/* Editor Textarea */}
+                <textarea
+                  ref={textareaRef}
+                  rows={13}
+                  className="code-editor-textarea"
+                  value={sourceCode}
+                  onChange={(e) => setSourceCode(e.target.value)}
+                  onScroll={handleEditorScroll}
+                  placeholder="; Enter assembly instructions here..."
+                  spellCheck={false}
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Interactive SVG Datapath */}
-          <div className="glass-panel" style={{ padding: '1.25rem' }}>
+          {/* Interactive SVG Datapath with New Accent Colors & Glowing Nodes */}
+          <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '12px' }}>
             <div
               style={{
                 display: 'flex',
@@ -310,7 +358,12 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
                 marginBottom: '1rem',
               }}
             >
-              <h3 style={{ fontSize: '0.95rem', fontWeight: 600 }}>Interactive CPU Datapath</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.1rem' }}>⚡</span>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Interactive CPU Datapath
+                </h3>
+              </div>
               <span className={`badge ${bus.alu_op ? 'badge-blue' : 'badge-amber'}`}>
                 {bus.alu_op ? `ALU: ${bus.alu_op}` : bus.mem_read ? 'MEM READ' : bus.mem_write ? 'MEM WRITE' : 'IDLE'}
               </span>
@@ -320,58 +373,114 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
               style={{
                 width: '100%',
                 overflowX: 'auto',
-                background: 'var(--bg-base)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '0.5rem',
+                background: '#09090b',
+                borderRadius: '10px',
+                padding: '0.75rem',
                 border: '1px solid var(--border)',
               }}
             >
               <svg viewBox="0 0 760 220" style={{ width: '100%', minWidth: '700px', height: 'auto' }}>
                 <defs>
-                  <linearGradient id="activeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.8" />
-                    <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.8" />
-                  </linearGradient>
+                  {/* Subtle Node Glow Filter */}
+                  <filter id="nodeGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#6366f1" floodOpacity="0.5" />
+                  </filter>
+                  <filter id="aluGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#10b981" floodOpacity="0.5" />
+                  </filter>
+                  <filter id="memGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#06b6d4" floodOpacity="0.5" />
+                  </filter>
+                  <filter id="regGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#f59e0b" floodOpacity="0.5" />
+                  </filter>
+
+                  {/* Colored Arrow Markers */}
                   <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6" />
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#6366f1" />
+                  </marker>
+                  <marker id="arrowGreen" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981" />
+                  </marker>
+                  <marker id="arrowCyan" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#06b6d4" />
+                  </marker>
+                  <marker id="arrowAmber" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#f59e0b" />
                   </marker>
                 </defs>
 
-                {/* Bus Wires (Background) */}
-                <path d="M 80 110 L 120 110" stroke={cpuState ? '#3b82f6' : '#23304d'} strokeWidth="3" markerEnd="url(#arrow)" />
-                <path d="M 220 110 L 260 110" stroke={cpuState ? '#3b82f6' : '#23304d'} strokeWidth="3" markerEnd="url(#arrow)" />
-                <path d="M 360 85 L 430 85" stroke={bus.alu_in1 !== null ? '#10b981' : '#23304d'} strokeWidth="3" markerEnd="url(#arrow)" />
-                <path d="M 360 135 L 430 135" stroke={bus.alu_in2 !== null ? '#10b981' : '#23304d'} strokeWidth="3" markerEnd="url(#arrow)" />
-                <path d="M 510 110 L 570 110" stroke={bus.alu_out !== null ? '#06b6d4' : '#23304d'} strokeWidth="3" markerEnd="url(#arrow)" />
-                <path d="M 670 110 L 710 110" stroke={bus.mem_read ? '#06b6d4' : '#23304d'} strokeWidth="3" />
-                <path d="M 710 110 L 710 200 L 310 200 L 310 160" stroke={bus.reg_write ? '#f59e0b' : '#23304d'} strokeWidth="3" strokeDasharray="5,5" markerEnd="url(#arrow)" />
+                {/* Bus Wires (Background) with SaaS Accent Colors */}
+                <path d="M 80 110 L 120 110" stroke={cpuState ? '#6366f1' : '#27272a'} strokeWidth="3" markerEnd="url(#arrow)" />
+                <path d="M 220 110 L 260 110" stroke={cpuState ? '#6366f1' : '#27272a'} strokeWidth="3" markerEnd="url(#arrow)" />
+                <path d="M 360 85 L 430 85" stroke={bus.alu_in1 !== null ? '#10b981' : '#27272a'} strokeWidth="3" markerEnd={bus.alu_in1 !== null ? 'url(#arrowGreen)' : 'url(#arrow)'} />
+                <path d="M 360 135 L 430 135" stroke={bus.alu_in2 !== null ? '#10b981' : '#27272a'} strokeWidth="3" markerEnd={bus.alu_in2 !== null ? 'url(#arrowGreen)' : 'url(#arrow)'} />
+                <path d="M 510 110 L 570 110" stroke={bus.alu_out !== null ? '#06b6d4' : '#27272a'} strokeWidth="3" markerEnd={bus.alu_out !== null ? 'url(#arrowCyan)' : 'url(#arrow)'} />
+                <path d="M 670 110 L 710 110" stroke={bus.mem_read ? '#06b6d4' : '#27272a'} strokeWidth="3" />
+                <path d="M 710 110 L 710 200 L 310 200 L 310 160" stroke={bus.reg_write ? '#f59e0b' : '#27272a'} strokeWidth="3" strokeDasharray="5,5" markerEnd="url(#arrowAmber)" />
 
                 {/* 1. PC Block */}
-                <rect x="20" y="80" width="60" height="60" rx="8" fill="#162035" stroke={cpuState ? '#3b82f6' : '#23304d'} strokeWidth="2" />
-                <text x="50" y="105" fill="#f8fafc" fontSize="12" fontWeight="bold" textAnchor="middle">PC</text>
-                <text x="50" y="125" fill="#60a5fa" fontSize="14" fontWeight="bold" textAnchor="middle">{cpuState ? cpuState.pc : 0}</text>
+                <rect
+                  x="20"
+                  y="80"
+                  width="60"
+                  height="60"
+                  rx="8"
+                  fill="#18181b"
+                  stroke={cpuState ? '#6366f1' : '#27272a'}
+                  strokeWidth="2"
+                  filter={cpuState ? 'url(#nodeGlow)' : undefined}
+                />
+                <text x="50" y="105" fill="#f4f4f5" fontSize="12" fontWeight="bold" textAnchor="middle">PC</text>
+                <text x="50" y="125" fill="#a5b4fc" fontSize="14" fontWeight="bold" textAnchor="middle">{cpuState ? cpuState.pc : 0}</text>
 
                 {/* 2. Instruction Memory Block */}
-                <rect x="120" y="70" width="100" height="80" rx="8" fill="#162035" stroke="#23304d" strokeWidth="2" />
-                <text x="170" y="105" fill="#f8fafc" fontSize="12" fontWeight="bold" textAnchor="middle">Instruction</text>
-                <text x="170" y="125" fill="#94a3b8" fontSize="11" textAnchor="middle">Memory</text>
+                <rect x="120" y="70" width="100" height="80" rx="8" fill="#18181b" stroke="#27272a" strokeWidth="2" />
+                <text x="170" y="105" fill="#f4f4f5" fontSize="12" fontWeight="bold" textAnchor="middle">Instruction</text>
+                <text x="170" y="125" fill="#a1a1aa" fontSize="11" textAnchor="middle">Memory</text>
 
                 {/* 3. Register File Block */}
-                <rect x="260" y="60" width="100" height="100" rx="8" fill="#162035" stroke={bus.reg_write ? '#f59e0b' : '#23304d'} strokeWidth="2" />
-                <text x="310" y="95" fill="#f8fafc" fontSize="12" fontWeight="bold" textAnchor="middle">Register File</text>
-                <text x="310" y="115" fill="#94a3b8" fontSize="10" textAnchor="middle">R0 .. R7</text>
-                <text x="310" y="135" fill={bus.reg_write ? '#f59e0b' : '#64748b'} fontSize="9" textAnchor="middle">
+                <rect
+                  x="260"
+                  y="60"
+                  width="100"
+                  height="100"
+                  rx="8"
+                  fill="#18181b"
+                  stroke={bus.reg_write ? '#f59e0b' : '#27272a'}
+                  strokeWidth="2"
+                  filter={bus.reg_write ? 'url(#regGlow)' : undefined}
+                />
+                <text x="310" y="95" fill="#f4f4f5" fontSize="12" fontWeight="bold" textAnchor="middle">Register File</text>
+                <text x="310" y="115" fill="#a1a1aa" fontSize="10" textAnchor="middle">R0 .. R7</text>
+                <text x="310" y="135" fill={bus.reg_write ? '#f59e0b' : '#71717a'} fontSize="9" textAnchor="middle">
                   {bus.reg_write ? 'WRITE ACTIVE' : '3-Port File'}
                 </text>
 
                 {/* 4. ALU Polygon Block */}
-                <polygon points="430,60 480,95 480,125 430,160 430,120 440,110 430,100" fill="#162035" stroke={bus.alu_op ? '#10b981' : '#23304d'} strokeWidth="2" />
-                <text x="455" y="115" fill={bus.alu_op ? '#34d399' : '#94a3b8'} fontSize="11" fontWeight="bold" textAnchor="middle">ALU</text>
+                <polygon
+                  points="430,60 480,95 480,125 430,160 430,120 440,110 430,100"
+                  fill="#18181b"
+                  stroke={bus.alu_op ? '#10b981' : '#27272a'}
+                  strokeWidth="2"
+                  filter={bus.alu_op ? 'url(#aluGlow)' : undefined}
+                />
+                <text x="455" y="115" fill={bus.alu_op ? '#34d399' : '#a1a1aa'} fontSize="11" fontWeight="bold" textAnchor="middle">ALU</text>
 
                 {/* 5. Data Memory Block */}
-                <rect x="570" y="65" width="100" height="90" rx="8" fill="#162035" stroke={bus.mem_read || bus.mem_write ? '#06b6d4' : '#23304d'} strokeWidth="2" />
-                <text x="620" y="100" fill="#f8fafc" fontSize="12" fontWeight="bold" textAnchor="middle">Data Memory</text>
-                <text x="620" y="120" fill={bus.mem_write ? '#f43f5e' : bus.mem_read ? '#06b6d4' : '#64748b'} fontSize="10" textAnchor="middle">
+                <rect
+                  x="570"
+                  y="65"
+                  width="100"
+                  height="90"
+                  rx="8"
+                  fill="#18181b"
+                  stroke={bus.mem_read || bus.mem_write ? '#06b6d4' : '#27272a'}
+                  strokeWidth="2"
+                  filter={bus.mem_read || bus.mem_write ? 'url(#memGlow)' : undefined}
+                />
+                <text x="620" y="100" fill="#f4f4f5" fontSize="12" fontWeight="bold" textAnchor="middle">Data Memory</text>
+                <text x="620" y="120" fill={bus.mem_write ? '#f43f5e' : bus.mem_read ? '#06b6d4' : '#71717a'} fontSize="10" textAnchor="middle">
                   {bus.mem_write ? 'MEM WRITE' : bus.mem_read ? 'MEM READ' : 'RAM'}
                 </text>
 
@@ -382,17 +491,17 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
           </div>
 
           {/* Console / Log Output */}
-          <div className="glass-panel" style={{ padding: '1.25rem' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem' }}>
+          <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '12px' }}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
               CPU Execution Trace Log
             </h3>
             <div
               style={{
                 height: '140px',
                 overflowY: 'auto',
-                background: 'rgba(8, 11, 17, 0.95)',
+                background: '#09090b',
                 padding: '0.75rem 1rem',
-                borderRadius: 'var(--radius-sm)',
+                borderRadius: '8px',
                 border: '1px solid var(--border)',
                 fontFamily: 'var(--font-mono)',
                 fontSize: '0.8rem',
@@ -402,7 +511,7 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
             >
               {cpuState && cpuState.log.length > 0 ? (
                 cpuState.log.map((line, idx) => (
-                  <div key={idx} style={{ color: line.includes('HALT') ? 'var(--accent-rose)' : 'var(--text-main)' }}>
+                  <div key={idx} style={{ color: line.includes('HALT') ? 'var(--accent-rose)' : 'var(--text-primary)' }}>
                     {line}
                   </div>
                 ))
@@ -414,12 +523,16 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
         </div>
 
         {/* Right Column (30%): Live Registers & Memory Inspector */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {/* Register File Table */}
-          <div className="glass-panel" style={{ padding: '1.25rem' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem' }}>
-              Register File (R0-R7)
-            </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Register File Table with Zebra-Striping & Changed Value Highlights */}
+          <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Register File (R0-R7)
+              </h3>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Live CPU Core</span>
+            </div>
+
             <div className="table-container">
               <table className="data-table">
                 <thead>
@@ -434,11 +547,24 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
                   {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
                     const regName = `R${i}`;
                     const val = cpuState?.registers[regName] ?? 0;
+                    const prevVal = prevCpuState?.registers[regName];
+                    const isChanged = prevVal !== undefined && prevVal !== val;
+
                     return (
                       <tr key={regName}>
-                        <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{regName}</td>
-                        <td style={{ fontFamily: 'var(--font-mono)' }}>{toHex(val)}</td>
-                        <td>{val}</td>
+                        <td style={{ fontWeight: 600, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+                          {regName}
+                        </td>
+                        <td style={{ fontFamily: 'var(--font-mono)' }}>
+                          <span className={isChanged ? 'val-highlight' : undefined}>
+                            {toHex(val)}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={isChanged ? 'val-highlight' : undefined}>
+                            {val}
+                          </span>
+                        </td>
                         <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-dim)' }}>
                           {toBin(val)}
                         </td>
@@ -453,39 +579,47 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
             <div
               style={{
                 display: 'flex',
-                gap: '1rem',
+                justifyContent: 'space-between',
                 marginTop: '1rem',
-                padding: '0.5rem 0.75rem',
-                background: 'var(--bg-surface)',
-                borderRadius: 'var(--radius-sm)',
+                padding: '0.65rem 0.85rem',
+                background: '#121215',
+                borderRadius: '8px',
                 border: '1px solid var(--border)',
-                fontSize: '0.85rem',
+                fontSize: '0.825rem',
               }}
             >
               <div>
-                Zero Flag (Z): <strong style={{ color: cpuState?.flags.Z ? 'var(--accent-emerald)' : 'var(--text-dim)' }}>{cpuState?.flags.Z ? '1' : '0'}</strong>
+                Zero Flag (Z):{' '}
+                <strong style={{ color: cpuState?.flags.Z ? 'var(--accent-emerald)' : 'var(--text-dim)' }}>
+                  {cpuState?.flags.Z ? '1' : '0'}
+                </strong>
               </div>
               <div>
-                Negative Flag (N): <strong style={{ color: cpuState?.flags.N ? 'var(--accent-rose)' : 'var(--text-dim)' }}>{cpuState?.flags.N ? '1' : '0'}</strong>
+                Negative Flag (N):{' '}
+                <strong style={{ color: cpuState?.flags.N ? 'var(--accent-rose)' : 'var(--text-dim)' }}>
+                  {cpuState?.flags.N ? '1' : '0'}
+                </strong>
               </div>
             </div>
           </div>
 
-          {/* Memory Inspector */}
-          <div className="glass-panel" style={{ padding: '1.25rem' }}>
+          {/* Memory Inspector with Filter, Zebra-Striping & Changed Value Highlights */}
+          <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-              <h3 style={{ fontSize: '0.95rem', fontWeight: 600 }}>Memory Inspector</h3>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Memory Inspector
+              </h3>
               <input
                 type="text"
                 className="form-input"
-                placeholder="Filter address..."
+                placeholder="Filter addr..."
                 value={memoryFilter}
                 onChange={(e) => setMemoryFilter(e.target.value)}
-                style={{ width: '110px', padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
+                style={{ width: '110px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
               />
             </div>
 
-            <div className="table-container" style={{ maxHeight: '220px', overflowY: 'auto' }}>
+            <div className="table-container" style={{ maxHeight: '240px', overflowY: 'auto' }}>
               <table className="data-table">
                 <thead>
                   <tr>
@@ -498,16 +632,24 @@ export const BuildTab: React.FC<BuildTabProps> = ({ currentProgram, onProgramUpd
                   {cpuState && Object.keys(cpuState.memory).length > 0 ? (
                     Object.entries(cpuState.memory)
                       .filter(([addr]) => (memoryFilter ? addr.includes(memoryFilter) : true))
-                      .map(([addr, val]) => (
-                        <tr key={addr}>
-                          <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>[{addr}]</td>
-                          <td style={{ fontFamily: 'var(--font-mono)' }}>{toHex(val)}</td>
-                          <td>{val}</td>
-                        </tr>
-                      ))
+                      .map(([addr, val]) => {
+                        const prevMemVal = prevCpuState?.memory[addr];
+                        const isChanged = prevMemVal !== undefined && prevMemVal !== val;
+                        return (
+                          <tr key={addr}>
+                            <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>[{addr}]</td>
+                            <td style={{ fontFamily: 'var(--font-mono)' }}>
+                              <span className={isChanged ? 'val-highlight' : undefined}>{toHex(val)}</span>
+                            </td>
+                            <td>
+                              <span className={isChanged ? 'val-highlight' : undefined}>{val}</span>
+                            </td>
+                          </tr>
+                        );
+                      })
                   ) : (
                     <tr>
-                      <td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-dim)' }}>
+                      <td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '1.5rem' }}>
                         Memory uninitialized or all zeros
                       </td>
                     </tr>

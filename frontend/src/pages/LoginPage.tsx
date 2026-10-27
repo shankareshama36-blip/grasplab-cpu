@@ -39,124 +39,169 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup }) => {
   };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1.5rem',
-        background: 'radial-gradient(ellipse at top, #141f38 0%, #080b11 70%)',
-      }}
-    >
+    <div className="auth-page-container">
+      {/* Animated Glowing Mesh Gradient */}
+      <div className="auth-mesh-bg" aria-hidden="true">
+        <div className="auth-mesh-orb-1" />
+        <div className="auth-mesh-orb-2" />
+        <div className="auth-mesh-orb-3" />
+        <div className="auth-grid-overlay" />
+      </div>
+
+      {/* Centered Floating Glass Card */}
       <div
-        className="glass-panel"
+        className="glass-panel fade-in"
         style={{
+          position: 'relative',
+          zIndex: 1,
           width: '100%',
-          maxWidth: '460px',
-          padding: '2.25rem',
-          border: '1px solid rgba(59, 130, 246, 0.25)',
+          maxWidth: '470px',
+          padding: '2.5rem',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 35px rgba(99, 102, 241, 0.15)',
         }}
       >
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+        {/* Brand Header */}
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <div
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: '48px',
-              height: '48px',
-              borderRadius: '12px',
-              background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-              marginBottom: '0.75rem',
-              boxShadow: '0 0 20px rgba(59, 130, 246, 0.4)',
-              fontSize: '1.5rem',
-              fontWeight: 'bold',
+              width: '52px',
+              height: '52px',
+              borderRadius: '14px',
+              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #06b6d4 100%)',
+              marginBottom: '1rem',
+              boxShadow: '0 0 25px rgba(99, 102, 241, 0.5)',
+              fontSize: '1.65rem',
             }}
           >
             ⚡
           </div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.02em' }}>
-            GraspLab
-          </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+            <h1 style={{ fontSize: '1.85rem', fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text-primary)' }}>
+              GraspLab
+            </h1>
+            <span
+              style={{
+                fontSize: '0.65rem',
+                fontWeight: 700,
+                letterSpacing: '0.05em',
+                padding: '0.15rem 0.45rem',
+                borderRadius: '9999px',
+                background: 'rgba(99, 102, 241, 0.2)',
+                color: '#a5b4fc',
+                border: '1px solid rgba(99, 102, 241, 0.35)',
+                textTransform: 'uppercase',
+              }}
+            >
+              Enterprise
+            </span>
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
             Interactive Computer Architecture & Pipelining Lab
           </p>
         </div>
 
         {error && (
           <div
+            className="fade-in"
             style={{
-              padding: '0.75rem 1rem',
-              borderRadius: 'var(--radius-sm)',
-              background: 'rgba(244, 63, 94, 0.15)',
+              padding: '0.85rem 1rem',
+              borderRadius: '8px',
+              background: 'rgba(244, 63, 94, 0.12)',
               border: '1px solid var(--accent-rose)',
               color: '#fda4af',
               fontSize: '0.85rem',
               marginBottom: '1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
             }}
           >
-            {error}
+            <span>⚠️</span>
+            <span>{error}</span>
           </div>
         )}
 
-        {/* 1-Click Demo Logins */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
-          <button
-            type="button"
-            onClick={() => handleDemoClick('Student')}
-            disabled={isDemoSubmitting || isSubmitting}
-            className="btn btn-accent"
-            style={{
-              width: '100%',
-              padding: '0.7rem',
-              fontSize: '0.9rem',
-              fontWeight: 600,
-            }}
-          >
-            {isDemoSubmitting ? 'Authenticating...' : '🚀 1-Click Demo (Student)'}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDemoClick('Instructor')}
-            disabled={isDemoSubmitting || isSubmitting}
-            className="btn btn-secondary"
-            style={{
-              width: '100%',
-              padding: '0.7rem',
-              fontSize: '0.9rem',
-              fontWeight: 600,
-              borderColor: 'var(--accent-amber)',
-              color: 'var(--accent-amber)',
-            }}
-          >
-            {isDemoSubmitting ? 'Authenticating...' : '🎓 1-Click Demo (Instructor Portal)'}
-          </button>
-        </div>
-
-        {/* Demo Credentials Cheat Sheet */}
+        {/* 1-Click Demo Login - Popped Out Secondary Action */}
         <div
           style={{
-            padding: '0.65rem 0.85rem',
-            background: 'rgba(0, 0, 0, 0.35)',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border-subtle)',
-            fontSize: '0.75rem',
-            color: 'var(--text-muted)',
-            marginBottom: '1.25rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.25rem',
+            background: 'rgba(24, 24, 27, 0.65)',
+            border: '1px solid rgba(99, 102, 241, 0.25)',
+            borderRadius: '12px',
+            padding: '1rem',
+            marginBottom: '1.5rem',
+            boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.05)',
           }}
         >
-          <div style={{ fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.1rem' }}>
-            Free Pre-Seeded Demo Credentials:
+          <div
+            style={{
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: '#a5b4fc',
+              marginBottom: '0.65rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+            }}
+          >
+            <span>✨</span> Instant Evaluation Access
           </div>
-          <div>👨‍🎓 <strong>Student:</strong> <code>demo@grasplab.dev</code> / <code>demo1234</code></div>
-          <div>👨‍🏫 <strong>Instructor:</strong> <code>instructor@grasplab.dev</code> / <code>instructor123</code></div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+            <button
+              type="button"
+              onClick={() => handleDemoClick('Student')}
+              disabled={isDemoSubmitting || isSubmitting}
+              className="btn btn-demo-primary"
+              style={{
+                padding: '0.65rem 0.75rem',
+                fontSize: '0.825rem',
+                fontWeight: 600,
+                borderRadius: '8px',
+              }}
+            >
+              {isDemoSubmitting ? 'Authenticating...' : '🚀 Student Demo'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDemoClick('Instructor')}
+              disabled={isDemoSubmitting || isSubmitting}
+              className="btn btn-demo-instructor"
+              style={{
+                padding: '0.65rem 0.75rem',
+                fontSize: '0.825rem',
+                fontWeight: 600,
+                borderRadius: '8px',
+              }}
+            >
+              {isDemoSubmitting ? 'Authenticating...' : '🎓 Instructor Portal'}
+            </button>
+          </div>
+
+          {/* Demo Credentials Pill */}
+          <div
+            style={{
+              marginTop: '0.75rem',
+              fontSize: '0.72rem',
+              color: 'var(--text-dim)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontFamily: 'var(--font-mono)',
+              borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+              paddingTop: '0.5rem',
+            }}
+          >
+            <span>Student: demo@grasplab.dev</span>
+            <span>Pass: demo1234</span>
+          </div>
         </div>
 
+        {/* Divider */}
         <div
           style={{
             display: 'flex',
@@ -164,22 +209,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup }) => {
             textAlign: 'center',
             margin: '1.25rem 0',
             color: 'var(--text-dim)',
-            fontSize: '0.8rem',
+            fontSize: '0.75rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
           }}
         >
           <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-          <span style={{ padding: '0 0.75rem' }}>or sign in with email</span>
+          <span style={{ padding: '0 0.75rem' }}>or sign in with credentials</span>
           <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
         </div>
 
-        {/* Email/Password Form */}
+        {/* Email/Password Form with Larger Inputs & Clear Focus Rings */}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">Email Address</label>
             <input
               type="email"
               required
-              className="form-input"
+              className="form-input form-input-lg"
               placeholder="e.g. demo@grasplab.dev"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -187,11 +234,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup }) => {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Password</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label className="form-label">Password</label>
+            </div>
             <input
               type="password"
               required
-              className="form-input"
+              className="form-input form-input-lg"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -201,14 +250,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup }) => {
           <button
             type="submit"
             disabled={isSubmitting || isDemoSubmitting}
-            className="btn btn-primary"
-            style={{ width: '100%', padding: '0.75rem', marginTop: '0.5rem' }}
+            className="btn btn-primary btn-lg"
+            style={{ width: '100%', marginTop: '0.5rem' }}
           >
-            {isSubmitting ? 'Signing in...' : 'Sign In'}
+            {isSubmitting ? 'Authenticating...' : 'Sign In to Workspace'}
           </button>
         </form>
 
-        <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+        {/* Bottom Switch Link */}
+        <div style={{ marginTop: '1.75rem', textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
           Don't have an account?{' '}
           <button
             type="button"
@@ -216,13 +266,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignup }) => {
             style={{
               background: 'none',
               border: 'none',
-              color: 'var(--primary)',
+              color: '#818cf8',
               cursor: 'pointer',
               fontWeight: 600,
               padding: 0,
+              fontFamily: 'var(--font-sans)',
+              transition: 'color 0.2s ease',
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#a5b4fc')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = '#818cf8')}
           >
-            Create Organization Account
+            Create Organization Account →
           </button>
         </div>
       </div>

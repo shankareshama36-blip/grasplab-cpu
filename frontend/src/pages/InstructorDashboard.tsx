@@ -32,52 +32,109 @@ export const InstructorDashboard: React.FC = () => {
     fetchOverview();
   }, []);
 
+  const userInitial = user?.email ? user.email.charAt(0).toUpperCase() : 'I';
+  const userName = user?.email ? user.email.split('@')[0] : 'Instructor';
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-base)' }}>
-      {/* Top Navbar */}
+      {/* Top Navbar with Glassmorphism */}
       <header
         style={{
           borderBottom: '1px solid var(--border)',
-          background: 'rgba(15, 22, 38, 0.85)',
-          backdropFilter: 'blur(10px)',
-          padding: '0.75rem 1.5rem',
+          background: 'rgba(24, 24, 27, 0.75)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          padding: '0.75rem 1.75rem',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          position: 'sticky',
+          top: 0,
+          zIndex: 50,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '1.2rem' }}>
-            <span style={{ color: 'var(--primary)' }}>⚡</span> GraspLab Instructor Portal
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.65rem',
+              fontWeight: 800,
+              fontSize: '1.25rem',
+              letterSpacing: '-0.02em',
+              color: 'var(--text-primary)',
+            }}
+          >
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 0 15px rgba(245, 158, 11, 0.4)',
+                fontSize: '1rem',
+              }}
+            >
+              🎓
+            </div>
+            <span>GraspLab Instructor Portal</span>
           </div>
-          <span className="badge badge-blue">{user?.tenant_id}</span>
-          <span className="badge badge-amber">Instructor Mode</span>
+
+          <div style={{ height: '18px', width: '1px', background: 'var(--border)' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span className="badge badge-blue">{user?.tenant_id}</span>
+            <span className="badge badge-amber">Classroom Admin</span>
+          </div>
         </div>
 
+        {/* User Profile Avatar Pill */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{user?.email}</span>
-          <button onClick={logout} className="btn btn-secondary btn-sm">
+          <div className="user-avatar-pill">
+            <div
+              className="user-avatar-circle"
+              style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}
+              title={user?.email}
+            >
+              {userInitial}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {userName}
+              </span>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                {user?.role || 'Instructor'}
+              </span>
+            </div>
+          </div>
+
+          <button onClick={logout} className="btn btn-secondary btn-sm" title="Sign out">
             Sign Out
           </button>
         </div>
       </header>
 
       {/* Main Content */}
-      <main style={{ flex: 1, padding: '1.5rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
-        <div style={{ marginBottom: '1.5rem' }}>
-          <h2 style={{ fontSize: '1.35rem', fontWeight: 700 }}>Classroom Program Submissions & Pipeline Diagnostics</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-            Monitor student assembly code efficiency, detect unhandled RAW pipeline stalls, and audit CPI metrics across your tenant.
+      <main style={{ flex: 1, padding: '1.75rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+        <div style={{ marginBottom: '1.75rem' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+            Classroom Program Submissions & Pipeline Diagnostics
+          </h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.35rem' }}>
+            Monitor student assembly code efficiency, detect unhandled RAW pipeline stalls, and audit CPI metrics across your organization.
           </p>
         </div>
 
         {isLoading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <Skeleton height="60px" />
-            <Skeleton height="200px" />
+            <Skeleton height="50px" borderRadius="10px" />
+            <Skeleton height="320px" borderRadius="12px" />
           </div>
         ) : programs.length === 0 ? (
-          <div className="empty-state">
+          <div className="empty-state fade-in">
             <div className="empty-state-icon">📋</div>
             <h3 className="empty-state-title">No student submissions yet</h3>
             <p className="empty-state-desc">
@@ -85,13 +142,27 @@ export const InstructorDashboard: React.FC = () => {
             </p>
           </div>
         ) : (
-          /* 70/30 Grid Layout */
-          <div className="layout-70-30">
+          /* 70/30 Grid Layout with distinct --bg-surface, --border, border-radius: 12px */
+          <div className="layout-70-30 fade-in">
             {/* Left 70%: Student Programs Table */}
-            <div className="glass-panel" style={{ padding: '1.25rem' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
-                Tenant Programs ({programs.length})
-              </h3>
+            <div
+              className="glass-panel"
+              style={{
+                padding: '1.5rem',
+                borderRadius: '12px',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Tenant Programs ({programs.length})
+                </h3>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Click a row to inspect detailed diagnostics
+                </span>
+              </div>
+
               <div className="table-container">
                 <table className="data-table">
                   <thead>
@@ -100,7 +171,7 @@ export const InstructorDashboard: React.FC = () => {
                       <th>ISA Preset</th>
                       <th>Runs</th>
                       <th>Latest CPI</th>
-                      <th>Hazard Flags</th>
+                      <th>Hazard Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -112,10 +183,12 @@ export const InstructorDashboard: React.FC = () => {
                           onClick={() => setSelectedProgram(prog)}
                           style={{
                             cursor: 'pointer',
-                            backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+                            backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.16)' : undefined,
                           }}
                         >
-                          <td style={{ fontWeight: 600 }}>{prog.name}</td>
+                          <td style={{ fontWeight: 600, color: isSelected ? '#a5b4fc' : 'var(--text-primary)' }}>
+                            {prog.name}
+                          </td>
                           <td>
                             <span className="badge badge-blue">{prog.isa_preset}</span>
                           </td>
@@ -145,17 +218,37 @@ export const InstructorDashboard: React.FC = () => {
             </div>
 
             {/* Right 30%: Inspection Detail Panel */}
-            <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Submission Diagnostics</h3>
+            <div
+              className="glass-panel"
+              style={{
+                padding: '1.5rem',
+                borderRadius: '12px',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.5rem',
+              }}
+            >
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Submission Diagnostics
+              </h3>
 
               {selectedProgram ? (
                 <>
-                  <div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)' }}>
+                  <div
+                    style={{
+                      padding: '1rem',
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    <div style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--accent)' }}>
                       {selectedProgram.name}
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                      ISA Architecture: {selectedProgram.isa_preset}
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      Target Architecture: <strong>{selectedProgram.isa_preset}</strong>
                     </div>
                   </div>
 
@@ -163,73 +256,78 @@ export const InstructorDashboard: React.FC = () => {
                   {selectedProgram.latest_run ? (
                     <div
                       style={{
-                        background: 'var(--bg-surface)',
-                        padding: '1rem',
-                        borderRadius: 'var(--radius-sm)',
+                        background: '#121215',
+                        padding: '1.15rem',
+                        borderRadius: '10px',
                         border: '1px solid var(--border)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '0.6rem',
+                        gap: '0.75rem',
                       }}
                     >
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 600 }}>Latest Run Breakdown</h4>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                      <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Latest Run Breakdown
+                      </h4>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                         <span style={{ color: 'var(--text-muted)' }}>Execution Cycles:</span>
-                        <strong>{selectedProgram.latest_run.cycles}</strong>
+                        <strong style={{ fontFamily: 'var(--font-mono)' }}>{selectedProgram.latest_run.cycles}</strong>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>CPI:</span>
-                        <strong style={{ color: 'var(--accent-emerald)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Cycles Per Instruction (CPI):</span>
+                        <strong style={{ color: 'var(--accent-emerald)', fontFamily: 'var(--font-mono)' }}>
                           {selectedProgram.latest_run.cpi.toFixed(2)}
                         </strong>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                         <span style={{ color: 'var(--text-muted)' }}>Data Hazard Stalls:</span>
-                        <strong style={{ color: 'var(--accent-rose)' }}>
+                        <strong style={{ color: 'var(--accent-rose)', fontFamily: 'var(--font-mono)' }}>
                           {selectedProgram.latest_run.hazards.total_stalls || 0}
                         </strong>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                         <span style={{ color: 'var(--text-muted)' }}>Control Branch Flushes:</span>
-                        <strong style={{ color: 'var(--accent-amber)' }}>
+                        <strong style={{ color: 'var(--accent-amber)', fontFamily: 'var(--font-mono)' }}>
                           {selectedProgram.latest_run.hazards.total_flushes || 0}
                         </strong>
                       </div>
                     </div>
                   ) : (
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-dim)', textAlign: 'center', padding: '1rem' }}>
                       No runs recorded for this program yet.
                     </div>
                   )}
 
                   {/* Run History List */}
                   <div>
-                    <h4 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       Recent Run History ({selectedProgram.runs.length})
                     </h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '200px', overflowY: 'auto' }}>
                       {selectedProgram.runs.map((r, idx) => (
                         <div
                           key={r.id || idx}
                           style={{
-                            padding: '0.5rem 0.75rem',
+                            padding: '0.6rem 0.85rem',
                             background: 'rgba(255, 255, 255, 0.02)',
-                            borderRadius: '4px',
+                            borderRadius: '6px',
                             border: '1px solid var(--border-subtle)',
-                            fontSize: '0.75rem',
+                            fontSize: '0.8rem',
                             display: 'flex',
                             justifyContent: 'space-between',
+                            alignItems: 'center',
                           }}
                         >
-                          <span>Run #{r.id} ({r.cycles} cycles)</span>
-                          <span style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>CPI {r.cpi.toFixed(2)}</span>
+                          <span style={{ fontFamily: 'var(--font-mono)' }}>Run #{r.id} ({r.cycles} cycles)</span>
+                          <span style={{ color: 'var(--accent-emerald)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
+                            CPI {r.cpi.toFixed(2)}
+                          </span>
                         </div>
                       ))}
                     </div>
                   </div>
                 </>
               ) : (
-                <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+                <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textAlign: 'center', padding: '2rem 1rem' }}>
                   Select a program from the left to inspect its detailed pipeline diagnostics.
                 </div>
               )}

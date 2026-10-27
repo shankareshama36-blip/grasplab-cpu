@@ -17,7 +17,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
 }) => {
   return (
     <div
-      className={`skeleton ${className}`}
+      className={`skeleton skeleton-loading ${className}`}
       style={{
         width,
         height,

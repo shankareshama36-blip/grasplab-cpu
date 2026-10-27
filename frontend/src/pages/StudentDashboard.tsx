@@ -89,48 +89,89 @@ export const StudentDashboard: React.FC = () => {
     }
   };
 
+  const userInitial = user?.email ? user.email.charAt(0).toUpperCase() : 'S';
+  const userName = user?.email ? user.email.split('@')[0] : 'Student';
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-base)' }}>
-      {/* Top Navbar */}
+      {/* Top Navbar with Glassmorphism */}
       <header
         style={{
           borderBottom: '1px solid var(--border)',
-          background: 'rgba(15, 22, 38, 0.85)',
-          backdropFilter: 'blur(10px)',
-          padding: '0.75rem 1.5rem',
+          background: 'rgba(24, 24, 27, 0.75)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          padding: '0.75rem 1.75rem',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          position: 'sticky',
+          top: 0,
+          zIndex: 50,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '0.5rem',
-              fontWeight: 700,
-              fontSize: '1.2rem',
-              color: 'var(--text-main)',
+              gap: '0.65rem',
+              fontWeight: 800,
+              fontSize: '1.25rem',
+              letterSpacing: '-0.02em',
+              color: 'var(--text-primary)',
             }}
           >
-            <span style={{ color: 'var(--primary)' }}>⚡</span> GraspLab
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 0 15px rgba(99, 102, 241, 0.4)',
+                fontSize: '1rem',
+              }}
+            >
+              ⚡
+            </div>
+            <span>GraspLab</span>
           </div>
 
-          <span className="badge badge-blue">{user?.tenant_id || 'tenant'}</span>
-          <span className="badge badge-green">{user?.role}</span>
+          <div style={{ height: '18px', width: '1px', background: 'var(--border)' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span className="badge badge-blue">{user?.tenant_id || 'workspace'}</span>
+            <span className="badge badge-green">{user?.role || 'Student'}</span>
+          </div>
         </div>
 
+        {/* User Profile Avatar Pill */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{user?.email}</span>
-          <button onClick={logout} className="btn btn-secondary btn-sm">
+          <div className="user-avatar-pill">
+            <div className="user-avatar-circle" title={user?.email}>
+              {userInitial}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {userName}
+              </span>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                {user?.role || 'Student'}
+              </span>
+            </div>
+          </div>
+
+          <button onClick={logout} className="btn btn-secondary btn-sm" title="Sign out of GraspLab">
             Sign Out
           </button>
         </div>
       </header>
 
       {/* Main Workspace */}
-      <main style={{ flex: 1, padding: '1.5rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
+      <main style={{ flex: 1, padding: '1.75rem', maxWidth: '1440px', margin: '0 auto', width: '100%' }}>
         {/* Workspace Sub-header & Navigation */}
         <div
           style={{
@@ -138,29 +179,35 @@ export const StudentDashboard: React.FC = () => {
             flexWrap: 'wrap',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '1rem',
-            marginBottom: '1.5rem',
+            gap: '1.25rem',
+            marginBottom: '1.75rem',
           }}
         >
-          {/* Main 3 Tabs */}
-          <div className="nav-tabs">
+          {/* Main 3 Tabs Styled as Segmented Pill Control */}
+          <div className="nav-tabs" role="tablist">
             <button
+              role="tab"
+              aria-selected={activeTab === 'learn'}
               className={`nav-tab-btn ${activeTab === 'learn' ? 'active' : ''}`}
               onClick={() => handleTabChange('learn')}
             >
-              📘 Learn
+              <span>📘</span> Learn
             </button>
             <button
+              role="tab"
+              aria-selected={activeTab === 'build'}
               className={`nav-tab-btn ${activeTab === 'build' ? 'active' : ''}`}
               onClick={() => handleTabChange('build')}
             >
-              🛠️ Build
+              <span>🛠️</span> Build
             </button>
             <button
+              role="tab"
+              aria-selected={activeTab === 'optimize'}
               className={`nav-tab-btn ${activeTab === 'optimize' ? 'active' : ''}`}
               onClick={() => handleTabChange('optimize')}
             >
-              🚀 Optimize
+              <span>🚀</span> Optimize
             </button>
           </div>
 
@@ -168,7 +215,7 @@ export const StudentDashboard: React.FC = () => {
           {activeTab !== 'learn' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               {isLoading ? (
-                <Skeleton width="180px" height="36px" />
+                <Skeleton width="200px" height="36px" borderRadius="6px" />
               ) : (
                 <select
                   className="form-select"
@@ -177,7 +224,7 @@ export const StudentDashboard: React.FC = () => {
                     const found = programs.find((p) => p.id === parseInt(e.target.value, 10));
                     if (found) setSelectedProgram(found);
                   }}
-                  style={{ width: '220px' }}
+                  style={{ width: '220px', fontSize: '0.85rem' }}
                 >
                   {programs.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -206,18 +253,18 @@ export const StudentDashboard: React.FC = () => {
 
         {/* Empty State when no programs exist */}
         {!isLoading && programs.length === 0 && activeTab !== 'learn' ? (
-          <div className="empty-state">
+          <div className="empty-state fade-in">
             <div className="empty-state-icon">📁</div>
-            <h3 className="empty-state-title">No programs yet</h3>
+            <h3 className="empty-state-title">No assembly programs yet</h3>
             <p className="empty-state-desc">
-              Your tenant workspace has no saved assembly files. Create your first program to start simulating instruction execution.
+              Your tenant workspace has no saved assembly files. Create your first program to start stepping through instructions in the interactive CPU pipeline.
             </p>
             <button onClick={() => setIsModalOpen(true)} className="btn btn-primary">
               + Create First Program
             </button>
           </div>
         ) : (
-          <>
+          <div className="fade-in">
             {activeTab === 'learn' && <LearnTab />}
             {activeTab === 'build' && (
               <BuildTab
@@ -229,7 +276,7 @@ export const StudentDashboard: React.FC = () => {
               />
             )}
             {activeTab === 'optimize' && <OptimizeTab currentProgram={selectedProgram} />}
-          </>
+          </div>
         )}
       </main>
 
@@ -241,7 +288,7 @@ export const StudentDashboard: React.FC = () => {
             <input
               type="text"
               required
-              className="form-input"
+              className="form-input form-input-lg"
               placeholder="e.g. Vector Dot Product"
               value={newProgName}
               onChange={(e) => setNewProgName(e.target.value)}
@@ -251,7 +298,7 @@ export const StudentDashboard: React.FC = () => {
           <div className="form-group">
             <label className="form-label">Instruction Set Architecture (ISA)</label>
             <select
-              className="form-select"
+              className="form-select form-input-lg"
               value={newProgPreset}
               onChange={(e) => setNewProgPreset(e.target.value)}
             >
@@ -261,7 +308,7 @@ export const StudentDashboard: React.FC = () => {
             </select>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
