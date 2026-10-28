@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Any, Set
+from typing import List, Dict, Optional, Any, Set, Tuple
 from app.engine.isa import Instruction
+from app.engine.cpu import CPU
 
 
 @dataclass
@@ -44,6 +45,14 @@ class PipelineState:
         return asdict(self)
 
 
+def _is_memory_load(instr: Instruction) -> bool:
+    return instr.opcode == "LOAD" and (instr.mem_addr is not None or instr.mem_base_reg is not None)
+
+
+def _is_memory_access(instr: Instruction) -> bool:
+    return instr.opcode == "STORE" or _is_memory_load(instr)
+
+
 class PipelineEngine:
     STAGES = ["IF", "ID", "EX", "MEM", "WB"]
 
@@ -71,9 +80,27 @@ class PipelineEngine:
         self.total_stalls = 0
         self.total_flushes = 0
         self.is_completed = False
+        self.halt_fetched = False
+
+        # Precompute architectural branch decisions from CPU execution trace
+        self._branch_decisions: List[Tuple[bool, Optional[int]]] = self._compute_branch_decisions()
+        self._branch_cursor = 0
 
         # History of stages for grid diagram
         self.history: List[PipelineState] = []
+
+    def _compute_branch_decisions(self) -> List[Tuple[bool, Optional[int]]]:
+        decisions: List[Tuple[bool, Optional[int]]] = []
+        if not self.instructions:
+            return decisions
+        sim_cpu = CPU(self.instructions)
+        trace = sim_cpu.run(max_cycles=300)
+        for st in trace:
+            curr = st.current_instruction
+            if curr and curr.get("opcode") in {"BRZ", "BRNZ", "BEQ", "BNE", "BLT", "BGT", "JMP"}:
+                taken = bool(st.bus_activity.get("branch_taken", False))
+                decisions.append((taken, st.next_pc))
+        return decisions
 
     def reset(self):
         self.cycle = 0
@@ -84,6 +111,8 @@ class PipelineEngine:
         self.total_stalls = 0
         self.total_flushes = 0
         self.is_completed = False
+        self.halt_fetched = False
+        self._branch_cursor = 0
         self.history.clear()
 
     def step(self) -> PipelineState:
@@ -102,14 +131,13 @@ class PipelineEngine:
 
         stall_required = False
         flush_if = False
-        flush_id = False
 
         # -------------------------------------------------------------
         # 1. Structural Hazard Detection:
-        # Occurs if MEM accesses memory (LOAD/STORE) while IF fetches.
+        # Occurs if MEM accesses data memory (LOAD [addr] / STORE) while IF fetches.
         # -------------------------------------------------------------
-        if instr_mem and not self.is_bubble["MEM"] and instr_mem.opcode in {"LOAD", "STORE"}:
-            if self.pc < len(self.instructions):
+        if instr_mem and not self.is_bubble["MEM"] and _is_memory_access(instr_mem):
+            if self.pc < len(self.instructions) and not self.halt_fetched:
                 # Structural conflict over unified memory bus
                 self.cumulative_hazards["structural"] += 1
                 active_hazards.append(Hazard(
@@ -134,14 +162,14 @@ class PipelineEngine:
                 if ex_dest and ex_dest in read_regs:
                     self.cumulative_hazards["data"] += 1
                     if self.forwarding_enabled:
-                        if instr_ex.opcode == "LOAD":
+                        if _is_memory_load(instr_ex):
                             # Load-Use Hazard: Memory value not ready until after MEM stage!
                             # Requires 1 stall cycle even with forwarding!
                             stall_required = True
                             self.total_stalls += 1
                             active_hazards.append(Hazard(
                                 hazard_type="data",
-                                description=f"Load-Use hazard on register {ex_dest} produced by LOAD in EX",
+                                description=f"Load-Use hazard on register {ex_dest} produced by memory LOAD in EX",
                                 affected_registers=[ex_dest],
                                 source_stage="EX",
                                 target_stage="ID",
@@ -211,20 +239,18 @@ class PipelineEngine:
 
         # -------------------------------------------------------------
         # 3. Control Hazard Detection:
-        # Branch or Jump resolved in ID or EX stage
+        # Branch or Jump resolved in ID stage using architectural trace
         # -------------------------------------------------------------
         branch_taken = False
         target_pc: Optional[int] = None
 
-        if instr_id and not self.is_bubble["ID"] and instr_id.is_branch_or_jump:
-            # Simple jump or branch: predict not taken; if taken -> flush IF
-            if instr_id.opcode in {"JMP", "J"} and instr_id.target_pc is not None:
-                branch_taken = True
-                target_pc = instr_id.target_pc
-            elif instr_id.opcode in {"BRZ", "BRNZ", "BEQ", "BNE", "BLT", "BGT"}:
-                # In pipelined architecture, branch condition is resolved in EX or ID
-                # If target is taken, penalty of 1 cycle occurs
-                branch_taken = True
+        if instr_id and not self.is_bubble["ID"] and instr_id.is_branch_or_jump and not stall_required:
+            if self._branch_cursor < len(self._branch_decisions):
+                branch_taken, target_pc = self._branch_decisions[self._branch_cursor]
+                self._branch_cursor += 1
+            else:
+                # Fallback if trace was exhausted
+                branch_taken = False
                 target_pc = instr_id.target_pc
 
         if branch_taken and target_pc is not None and not stall_required:
@@ -233,7 +259,7 @@ class PipelineEngine:
             self.total_flushes += 1
             active_hazards.append(Hazard(
                 hazard_type="control",
-                description=f"Control hazard: Branch taken to PC={target_pc}, flushing IF stage",
+                description=f"Control hazard: Branch taken to PC={target_pc}, flushing speculative IF instruction",
                 affected_registers=[],
                 source_stage="ID",
                 target_stage="IF",
@@ -271,18 +297,21 @@ class PipelineEngine:
                 next_id = None
                 next_id_bubble = True
                 self.pc = target_pc if target_pc is not None else self.pc
+                self.halt_fetched = False
             else:
                 next_id = instr_if
                 next_id_bubble = self.is_bubble["IF"]
 
             # Fetch new instruction into IF
-            if self.pc < len(self.instructions):
+            if self.pc < len(self.instructions) and not self.halt_fetched:
                 next_if = self.instructions[self.pc]
                 next_if_bubble = False
+                if next_if.opcode == "HALT":
+                    self.halt_fetched = True
                 self.pc += 1
             else:
                 next_if = None
-                next_if_bubble = True
+                next_if_bubble = False
 
         # Commit stage transitions
         self.stage_instructions["WB"] = next_wb
@@ -302,7 +331,7 @@ class PipelineEngine:
 
         # Check if all stages are empty and PC is done
         all_empty = all(self.stage_instructions[s] is None for s in self.STAGES)
-        if all_empty and self.pc >= len(self.instructions):
+        if all_empty and (self.pc >= len(self.instructions) or self.halt_fetched):
             self.is_completed = True
 
         state = self._build_state(

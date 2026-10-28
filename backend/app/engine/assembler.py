@@ -197,16 +197,28 @@ class Assembler:
                     raise AssemblyError(f"{opcode} requires target", line_no, raw_line)
 
             elif opcode in {"BEQ", "BNE", "BLT", "BGT"}:
-                # Syntax: BEQ R1, R2, TARGET
-                if len(operands) < 3:
-                    raise AssemblyError(f"{opcode} requires two source registers and target label", line_no, raw_line)
-                r1 = self.normalize_register(operands[0])
-                r2 = self.normalize_register(operands[1])
-                if not r1 or not r2:
-                    raise AssemblyError(f"Invalid registers in {opcode}", line_no, raw_line)
-                instr.rs1 = r1
-                instr.rs2 = r2
-                instr.label = operands[2].strip().upper()
+                # Syntax: BEQ R1, R2, TARGET or 1-operand flag branch (e.g. JL TARGET after CMP)
+                if len(operands) == 1:
+                    instr.label = operands[0].strip().upper()
+                elif len(operands) == 2:
+                    r1 = self.normalize_register(operands[0])
+                    if not r1:
+                        raise AssemblyError(f"Invalid register in {opcode}", line_no, raw_line)
+                    instr.rs1 = r1
+                    instr.imm = 0
+                    instr.label = operands[1].strip().upper()
+                elif len(operands) >= 3:
+                    r1 = self.normalize_register(operands[0])
+                    r2 = self.normalize_register(operands[1])
+                    imm2 = self.parse_integer(operands[1]) if not r2 else None
+                    if not r1 or (not r2 and imm2 is None):
+                        raise AssemblyError(f"Invalid operands in {opcode}", line_no, raw_line)
+                    instr.rs1 = r1
+                    instr.rs2 = r2
+                    instr.imm = imm2
+                    instr.label = operands[2].strip().upper()
+                else:
+                    raise AssemblyError(f"{opcode} requires target label", line_no, raw_line)
 
             elif opcode == "LOAD":
                 # Syntax:
@@ -275,26 +287,52 @@ class Assembler:
                             raise AssemblyError(f"Invalid memory target '{operands[1]}'", line_no, raw_line)
 
             elif opcode == "MOV":
-                # MOV R1, R2 or MOV R1, 10
+                # Supports:
+                # MOV R1, R2          -> Register-to-register move
+                # MOV R1, 10          -> Load immediate into register
+                # MOV R1, [100]       -> Load from memory into register
+                # MOV [100], R1       -> Store register into memory (x86 syntax)
                 if len(operands) < 2:
                     raise AssemblyError("MOV requires destination and source", line_no, raw_line)
-                rd = self.normalize_register(operands[0])
-                if not rd:
-                    raise AssemblyError("MOV destination must be a register", line_no, raw_line)
-                instr.rd = rd
 
-                rs = self.normalize_register(operands[1])
-                if rs:
-                    instr.rs1 = rs
+                mem_addr1, base_reg1, off1 = self.parse_memory_operand(operands[0])
+                if mem_addr1 is not None or base_reg1 is not None:
+                    # x86 style memory store: mov [200], eax
+                    rs = self.normalize_register(operands[1])
+                    if not rs:
+                        raise AssemblyError("MOV memory store source must be a register", line_no, raw_line)
+                    instr.opcode = "STORE"
+                    instr.rd = rs
+                    instr.mem_addr = mem_addr1
+                    instr.mem_base_reg = base_reg1
+                    instr.imm = off1
                 else:
-                    imm = self.parse_integer(operands[1])
-                    if imm is not None:
-                        instr.opcode = "LOAD"
-                        instr.imm = imm
-                    else:
-                        raise AssemblyError(f"Invalid MOV source '{operands[1]}'", line_no, raw_line)
+                    rd = self.normalize_register(operands[0])
+                    if not rd:
+                        raise AssemblyError("MOV destination must be a register or memory address", line_no, raw_line)
+                    instr.rd = rd
 
-            elif opcode in {"ADD", "SUB", "MUL", "AND", "OR", "XOR"}:
+                    mem_addr2, base_reg2, off2 = self.parse_memory_operand(operands[1])
+                    if mem_addr2 is not None:
+                        instr.opcode = "LOAD"
+                        instr.mem_addr = mem_addr2
+                    elif base_reg2 is not None:
+                        instr.opcode = "LOAD"
+                        instr.mem_base_reg = base_reg2
+                        instr.imm = off2 or 0
+                    else:
+                        rs = self.normalize_register(operands[1])
+                        if rs:
+                            instr.rs1 = rs
+                        else:
+                            imm = self.parse_integer(operands[1])
+                            if imm is not None:
+                                instr.opcode = "LOAD"
+                                instr.imm = imm
+                            else:
+                                raise AssemblyError(f"Invalid MOV source '{operands[1]}'", line_no, raw_line)
+
+            elif opcode in {"ADD", "SUB", "MUL", "AND", "OR", "XOR", "SHL", "SHR"}:
                 # 3-operand: ADD R1, R2, R3 (R1 = R2 + R3)
                 # 2-operand: ADD R1, R2 (R1 = R1 + R2)
                 if len(operands) == 3:
@@ -355,6 +393,51 @@ class Assembler:
                     instr.imm = imm
                 else:
                     raise AssemblyError("ADDI format invalid", line_no, raw_line)
+
+            elif opcode in {"INC", "DEC"}:
+                if len(operands) < 1:
+                    raise AssemblyError(f"{opcode} requires a target register", line_no, raw_line)
+                rd = self.normalize_register(operands[0])
+                if not rd:
+                    raise AssemblyError(f"Invalid register in {opcode}", line_no, raw_line)
+                instr.opcode = "ADDI"
+                instr.rd = rd
+                instr.rs1 = rd
+                instr.imm = 1 if opcode == "INC" else -1
+
+            elif opcode == "NOT":
+                if len(operands) == 1:
+                    rd = self.normalize_register(operands[0])
+                    if not rd:
+                        raise AssemblyError("Invalid register in NOT", line_no, raw_line)
+                    instr.rd = rd
+                    instr.rs1 = rd
+                elif len(operands) == 2:
+                    rd = self.normalize_register(operands[0])
+                    rs1 = self.normalize_register(operands[1])
+                    if not rd or not rs1:
+                        raise AssemblyError("Invalid registers in NOT", line_no, raw_line)
+                    instr.rd = rd
+                    instr.rs1 = rs1
+                else:
+                    raise AssemblyError("NOT requires 1 or 2 register operands", line_no, raw_line)
+
+            elif opcode == "CMP":
+                if len(operands) < 2:
+                    raise AssemblyError("CMP requires 2 operands", line_no, raw_line)
+                rs1 = self.normalize_register(operands[0])
+                if not rs1:
+                    raise AssemblyError(f"Invalid first operand '{operands[0]}' in CMP", line_no, raw_line)
+                instr.rs1 = rs1
+                rs2 = self.normalize_register(operands[1])
+                if rs2:
+                    instr.rs2 = rs2
+                else:
+                    imm = self.parse_integer(operands[1])
+                    if imm is not None:
+                        instr.imm = imm
+                    else:
+                        raise AssemblyError(f"Invalid second operand '{operands[1]}' in CMP", line_no, raw_line)
 
             else:
                 raise AssemblyError(f"Unknown or unsupported instruction '{opcode}'", line_no, raw_line)

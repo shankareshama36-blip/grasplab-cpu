@@ -92,6 +92,14 @@ export const api = {
     return handleResponse<Program[]>(res);
   },
 
+  async seedSamplePrograms(): Promise<Program[]> {
+    const res = await fetch(`${API_BASE}/programs/seed-samples`, {
+      method: 'POST',
+      headers: getHeaders(),
+    });
+    return handleResponse<Program[]>(res);
+  },
+
   async createProgram(name: string, assembly_source: string, isa_preset: string): Promise<Program> {
     const res = await fetch(`${API_BASE}/programs`, {
       method: 'POST',
@@ -127,10 +135,16 @@ export const api = {
 
   // Execution
   async stepProgram(
-    programId: number,
-    payload: { assembly_source?: string; step_index?: number; forwarding_enabled?: boolean }
+    programId: number | null,
+    payload: {
+      assembly_source?: string;
+      isa_preset?: string;
+      step_index?: number;
+      forwarding_enabled?: boolean;
+    }
   ): Promise<any> {
-    const res = await fetch(`${API_BASE}/programs/${programId}/step`, {
+    const url = programId ? `${API_BASE}/programs/${programId}/step` : `${API_BASE}/simulate/step`;
+    const res = await fetch(url, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(payload),
@@ -139,10 +153,17 @@ export const api = {
   },
 
   async runProgram(
-    programId: number,
-    payload: { assembly_source?: string; forwarding_enabled?: boolean; max_cycles?: number }
+    programId: number | null,
+    payload: {
+      assembly_source?: string;
+      isa_preset?: string;
+      forwarding_enabled?: boolean;
+      max_cycles?: number;
+      record_run?: boolean;
+    }
   ): Promise<RunResult> {
-    const res = await fetch(`${API_BASE}/programs/${programId}/run`, {
+    const url = programId ? `${API_BASE}/programs/${programId}/run` : `${API_BASE}/simulate/run`;
+    const res = await fetch(url, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(payload),

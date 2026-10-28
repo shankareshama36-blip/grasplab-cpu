@@ -165,11 +165,11 @@ class CPU:
             self._update_flags(val)
             self.logs.append(f"Cycle {self.cycles} [PC={self.pc}]: MOV {instr.rd} = {instr.rs1} ({val})")
 
-        elif op in {"ADD", "SUB", "MUL", "AND", "OR", "XOR"}:
+        elif op in {"ADD", "SUB", "MUL", "AND", "OR", "XOR", "SHL", "SHR"}:
             bus["reg_write"] = True
             bus["alu_op"] = op
             v1 = self.registers.get(instr.rs1, 0)
-            v2 = self.registers.get(instr.rs2, 0)
+            v2 = self.registers.get(instr.rs2, 0) if instr.rs2 is not None else (instr.imm or 0)
             bus["alu_in1"] = v1
             bus["alu_in2"] = v2
 
@@ -185,6 +185,10 @@ class CPU:
                 res = v1 | v2
             elif op == "XOR":
                 res = v1 ^ v2
+            elif op == "SHL":
+                res = v1 << max(0, min(16, v2))
+            elif op == "SHR":
+                res = v1 >> max(0, min(16, v2))
             else:
                 res = 0
 
@@ -192,6 +196,28 @@ class CPU:
             self.registers[instr.rd] = res
             self._update_flags(res)
             self.logs.append(f"Cycle {self.cycles} [PC={self.pc}]: {op} {instr.rd} = {v1} {op} {v2} -> {res}")
+
+        elif op == "NOT":
+            bus["reg_write"] = True
+            bus["alu_op"] = "NOT"
+            v1 = self.registers.get(instr.rs1, 0)
+            res = (~v1) & 0xFF
+            bus["alu_in1"] = v1
+            bus["alu_out"] = res
+            self.registers[instr.rd] = res
+            self._update_flags(res)
+            self.logs.append(f"Cycle {self.cycles} [PC={self.pc}]: NOT {instr.rd} = ~{v1} -> {res}")
+
+        elif op == "CMP":
+            bus["alu_op"] = "CMP"
+            v1 = self.registers.get(instr.rs1, 0)
+            v2 = self.registers.get(instr.rs2, 0) if instr.rs2 is not None else (instr.imm or 0)
+            diff = v1 - v2
+            bus["alu_in1"] = v1
+            bus["alu_in2"] = v2
+            bus["alu_out"] = diff
+            self._update_flags(diff)
+            self.logs.append(f"Cycle {self.cycles} [PC={self.pc}]: CMP {v1} vs {v2} (Z={int(self.flags['Z'])}, N={int(self.flags['N'])})")
 
         elif op == "ADDI":
             bus["reg_write"] = True
@@ -223,24 +249,36 @@ class CPU:
                 self.logs.append(f"Cycle {self.cycles} [PC={self.pc}]: {op} not taken (val={reg_val})")
 
         elif op in {"BEQ", "BNE", "BLT", "BGT"}:
-            v1 = self.registers.get(instr.rs1, 0)
-            v2 = self.registers.get(instr.rs2, 0)
-            cond = False
-            if op == "BEQ":
-                cond = (v1 == v2)
-            elif op == "BNE":
-                cond = (v1 != v2)
-            elif op == "BLT":
-                cond = (v1 < v2)
-            elif op == "BGT":
-                cond = (v1 > v2)
+            if instr.rs1 is None:
+                # Flag-based branch (e.g. JL / JG after CMP)
+                if op == "BEQ":
+                    cond = self.flags["Z"]
+                elif op == "BNE":
+                    cond = not self.flags["Z"]
+                elif op == "BLT":
+                    cond = self.flags["N"]
+                else:
+                    cond = (not self.flags["Z"]) and (not self.flags["N"])
+                v_desc = f"Z={int(self.flags['Z'])}, N={int(self.flags['N'])}"
+            else:
+                v1 = self.registers.get(instr.rs1, 0)
+                v2 = self.registers.get(instr.rs2, 0) if instr.rs2 is not None else (instr.imm or 0)
+                if op == "BEQ":
+                    cond = (v1 == v2)
+                elif op == "BNE":
+                    cond = (v1 != v2)
+                elif op == "BLT":
+                    cond = (v1 < v2)
+                else:
+                    cond = (v1 > v2)
+                v_desc = f"{v1} vs {v2}"
 
             if cond:
                 next_pc = instr.target_pc if instr.target_pc is not None else next_pc
                 bus["branch_taken"] = True
-                self.logs.append(f"Cycle {self.cycles} [PC={self.pc}]: {op} taken ({v1} vs {v2}) -> Jump to PC={next_pc}")
+                self.logs.append(f"Cycle {self.cycles} [PC={self.pc}]: {op} taken ({v_desc}) -> Jump to PC={next_pc}")
             else:
-                self.logs.append(f"Cycle {self.cycles} [PC={self.pc}]: {op} not taken ({v1} vs {v2})")
+                self.logs.append(f"Cycle {self.cycles} [PC={self.pc}]: {op} not taken ({v_desc})")
 
         self.latest_bus = bus
         state = self.get_state(current_instr=instr, next_pc=next_pc)

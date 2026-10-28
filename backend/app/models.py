@@ -128,6 +128,47 @@ hlt
 """
 
 
+def seed_tenant_programs(db_session, tenant_id: str) -> list:
+    """
+    Seeds the 4 starter sample programs + baseline run records for a given tenant_id.
+    """
+    programs_data = [
+        ("Array Sum with Branch", SAMPLE_ARRAY_SUM_SOURCE, "RISC-V", 14, 1.15, '{"data": 1, "control": 2, "structural": 0, "total_stalls": 0, "total_flushes": 2}'),
+        ("Factorial Loop (4! = 24)", SAMPLE_FACTORIAL_SOURCE, "RISC-V", 22, 1.22, '{"data": 2, "control": 3, "structural": 0, "total_stalls": 0, "total_flushes": 3}'),
+        ("Load-Use Hazard Demonstration", SAMPLE_HAZARD_SOURCE, "MIPS", 8, 1.60, '{"data": 2, "control": 0, "structural": 1, "total_stalls": 2, "total_flushes": 0}'),
+        ("x86 Arithmetic Accumulator", SAMPLE_X86_SOURCE, "x86", 6, 1.20, '{"data": 1, "control": 0, "structural": 0, "total_stalls": 0, "total_flushes": 0}'),
+    ]
+
+    seeded = []
+    for name, src, preset, cycles, cpi, hazards in programs_data:
+        prog = db_session.query(Program).filter(
+            Program.tenant_id == tenant_id,
+            Program.name == name
+        ).first()
+
+        if not prog:
+            prog = Program(
+                tenant_id=tenant_id,
+                name=name,
+                assembly_source=src,
+                isa_preset=preset,
+                status="ready"
+            )
+            db_session.add(prog)
+            db_session.flush()
+
+            run_rec = Run(
+                tenant_id=tenant_id,
+                program_id=prog.id,
+                cycles=cycles,
+                cpi=cpi,
+                hazards_json=hazards
+            )
+            db_session.add(run_rec)
+        seeded.append(prog)
+    return seeded
+
+
 def init_db(db_session=None, db_engine=None):
     """
     Initializes database tables and seeds demo accounts (Student + Instructor) + sample programs.
@@ -162,39 +203,7 @@ def init_db(db_session=None, db_engine=None):
         db_session.flush()
 
         # 2. Seed Sample Programs for demo-tenant
-        programs_data = [
-            ("Array Sum with Branch", SAMPLE_ARRAY_SUM_SOURCE, "RISC-V", 14, 1.15, '{"data": 1, "control": 2, "structural": 0, "total_stalls": 0, "total_flushes": 2}'),
-            ("Factorial Loop (4! = 24)", SAMPLE_FACTORIAL_SOURCE, "RISC-V", 22, 1.22, '{"data": 2, "control": 3, "structural": 0, "total_stalls": 0, "total_flushes": 3}'),
-            ("Load-Use Hazard Demonstration", SAMPLE_HAZARD_SOURCE, "MIPS", 8, 1.60, '{"data": 2, "control": 0, "structural": 1, "total_stalls": 2, "total_flushes": 0}'),
-            ("x86 Arithmetic Accumulator", SAMPLE_X86_SOURCE, "x86", 6, 1.20, '{"data": 1, "control": 0, "structural": 0, "total_stalls": 0, "total_flushes": 0}'),
-        ]
-
-        for name, src, preset, cycles, cpi, hazards in programs_data:
-            prog = db_session.query(Program).filter(
-                Program.tenant_id == "demo-tenant",
-                Program.name == name
-            ).first()
-
-            if not prog:
-                prog = Program(
-                    tenant_id="demo-tenant",
-                    name=name,
-                    assembly_source=src,
-                    isa_preset=preset,
-                    status="ready"
-                )
-                db_session.add(prog)
-                db_session.flush()
-
-                # Add a sample run record
-                run_rec = Run(
-                    tenant_id="demo-tenant",
-                    program_id=prog.id,
-                    cycles=cycles,
-                    cpi=cpi,
-                    hazards_json=hazards
-                )
-                db_session.add(run_rec)
+        seed_tenant_programs(db_session, "demo-tenant")
 
         db_session.commit()
     except Exception:

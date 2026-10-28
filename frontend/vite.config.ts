@@ -9,6 +9,7 @@ export default defineConfig({
     proxy: {
       '/auth': 'http://127.0.0.1:8000',
       '/programs': 'http://127.0.0.1:8000',
+      '/simulate': 'http://127.0.0.1:8000',
       '/performance': 'http://127.0.0.1:8000',
       '/tools': 'http://127.0.0.1:8000',
       '/instructor': 'http://127.0.0.1:8000',

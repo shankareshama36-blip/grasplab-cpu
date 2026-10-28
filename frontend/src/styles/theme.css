@@ -722,3 +722,155 @@ body {
   font-size: 0.8rem;
   box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
 }
+
+/* Unified IDE Workspace Shell & Sidebar Navigation */
+.workspace-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-base);
+}
+
+.workspace-topbar {
+  border-bottom: 1px solid var(--border);
+  background: rgba(18, 18, 21, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  padding: 0.6rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  flex-wrap: wrap;
+}
+
+.workspace-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--border);
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .workspace-breadcrumb {
+    display: none;
+  }
+}
+
+.workspace-body {
+  display: flex;
+  flex: 1;
+  min-height: calc(100vh - 58px);
+  width: 100%;
+}
+
+.workspace-sidebar {
+  width: 275px;
+  min-width: 275px;
+  background: rgba(18, 18, 21, 0.75);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 58px);
+  position: sticky;
+  top: 58px;
+}
+
+@media (max-width: 900px) {
+  .workspace-body {
+    flex-direction: column;
+  }
+  .workspace-sidebar {
+    width: 100%;
+    min-width: 100%;
+    height: auto;
+    max-height: 320px;
+    position: static;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+.workspace-content {
+  flex: 1;
+  min-width: 0;
+  padding: 1.5rem 1.75rem;
+  max-width: 1560px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.sidebar-program-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: rgba(24, 24, 27, 0.45);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sidebar-program-item:hover {
+  background: rgba(39, 39, 42, 0.75);
+  border-color: var(--border-hover);
+}
+
+.sidebar-program-item.active {
+  background: rgba(99, 102, 241, 0.14);
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.sidebar-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0.2rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  transition: all 0.15s ease;
+}
+
+.sidebar-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.sidebar-icon-btn.danger:hover {
+  background: rgba(244, 63, 94, 0.15);
+  color: var(--accent-rose);
+}
+
+.sidebar-template-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.42rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(24, 24, 27, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.sidebar-template-btn:hover {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: var(--text-primary);
+}
+

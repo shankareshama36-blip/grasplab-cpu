@@ -5,9 +5,10 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  maxWidth?: string;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, maxWidth = '540px' }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
@@ -40,8 +41,10 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
         className="glass-panel fade-in"
         style={{
           width: '100%',
-          maxWidth: '540px',
-          padding: '2rem',
+          maxWidth,
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          padding: '1.75rem',
           position: 'relative',
           backgroundColor: 'var(--bg-surface)',
           border: '1px solid rgba(255, 255, 255, 0.12)',

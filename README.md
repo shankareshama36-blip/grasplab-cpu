@@ -1,44 +1,21 @@
 # GraspLab
 
 > **Understand. See. Learn. Work on it.**
-> An interactive CPU architecture lab that turns gates, ISAs, datapaths, and pipelining into something you can actually touch.
+> An interactive CPU architecture IDE and visual lab that turns logic gates, ISAs, datapaths, and 5-stage pipelining into something you can touch and experiment with in real time.
 
-GraspLab is a multi-tenant SaaS where students build a small CPU, run real assembly on it, then pipeline and optimize it — all in the browser. Instructors get a dashboard to track progress and spot hazards.
+GraspLab is a multi-tenant computer architecture lab where students write RISC-V, MIPS, or x86 assembly, step backward and forward through a live SVG datapath, inspect 5-stage pipeline hazards (`RAW`, `Load-Use`, `Control`, `Structural`), and compare hardware forwarding ON vs. OFF — while instructors get real-time classroom analytics and 1-click program inspection in the simulator.
 
 ---
 
-## Why GraspLab
+## Core Interactive Capabilities
 
-Computer architecture is usually taught as slides and diagrams. GraspLab makes every concept hands-on:
-
-| Concept | How GraspLab teaches it |
+| Module | What You Can Do |
 |---|---|
-| Number systems, two's complement | **Binary Lab** — live converter + signed-number playground |
-| Logic gates, Boolean algebra | **Gate Sandbox** — drag-and-drop gates to build a half-adder |
-| Von Neumann vs Harvard | **Architecture Museum** — animated side-by-side diagrams |
-| Registers, common bus | **Register Bus Visualizer** — animated data transfers |
-| ISA, instruction cycle | **Build tab** — write assembly, step through fetch/decode/execute/writeback |
-| Datapath, control unit | **SVG datapath** that lights up per cycle; hardwired vs microprogrammed toggle |
-| Pipelining, hazards | **Optimize tab** — 5-stage pipeline, hazard injection, forwarding toggle |
-| Performance | **CPI / clock / Amdahl** dashboard with live charts |
-
----
-
-## Tech Stack
-
-**Backend**
-- Python 3.12+ · FastAPI · SQLAlchemy
-- Postgres (prod) / SQLite (local)
-- JWT auth (bcrypt hashing) · multi-tenant by `tenant_id`
-
-**Frontend**
-- React + TypeScript + Vite
-- Pure CSS, premium dark theme (glassmorphism)
-- SVG/Canvas for all visualizations
-
-**Engine**
-- Pure-logic CPU simulator (no framework imports, fully unit-testable)
-- Assembler · cycle engine · 5-stage pipeline · hazard detector · performance calculator
+| **Unified IDE Workspace** | Collapsible project explorer sidebar, persistent code/state across tabs, Live Scratchpad mode (simulate without saving first), starter benchmark templates, and 1-click Student ↔ Instructor role switching |
+| **🛠️ CPU Simulator (`BuildTab`)** | Multi-ISA assembly editor (`RISC-V`, `MIPS`, `x86`), active instruction line highlighting (`▶`), Step Back / Step Forward / Auto-Play with speed control & timeline scrubber, interactive SVG Datapath (`Hardwired` vs. `Microprogrammed` control unit), clickable execution trace, and editable RAM (`[0..255]`) |
+| **🚀 Pipeline & Hazards (`OptimizeTab`)** | 5-Stage (`IF`, `ID`, `EX`, `MEM`, `WB`) cycle-by-cycle space-time matrix with Auto-Play & scrubber, `Forwarding ON vs. OFF` side-by-side comparison card, active hazard diagnostics, and an SVG **Amdahl's Law** speedup curve chart |
+| **📘 Concept Labs (`LearnTab`)** | **Binary & Bitwise ALU Lab** (signed Two's Complement + bitwise `AND`/`OR`/`XOR`/`SHL`/`SHR`), **Logic Gate & 1-Bit Half-Adder SVG Circuit**, **Von Neumann vs. Harvard** structural bus contention stepper, and **3-Port Register File & Shared Bus** RTL transfer simulator |
+| **🎓 Classroom Analytics (`InstructorDashboard`)** | Tenant-wide KPI cards, search & hazard filters, student run history, assembly source code preview, and **🛠️ Open in Simulator** to load any student program directly into the interactive CPU debugger |
 
 ---
 
@@ -46,33 +23,43 @@ Computer architecture is usually taught as slides and diagrams. GraspLab makes e
 
 ```text
 GraspLab/
-├── backend/            # FastAPI REST API, auth (JWT + bcrypt), db, schemas, models
-├── engine/             # Pure-logic CPU simulation engine (ISA, assembler, cpu, pipeline, performance)
-├── src/                # React 18 + TypeScript + Pure CSS dark UI & dashboards
-│   ├── components/     # Modals, Skeletons, Toasts
-│   ├── context/        # AuthContext, ToastContext
-│   ├── pages/          # LoginPage, SignupPage, StudentDashboard, InstructorDashboard
-│   │   └── tabs/       # LearnTab, BuildTab, OptimizeTab
-│   └── styles/         # Glassmorphism design system & CSS theme
-├── tests/              # Pytest suite verifying DB, Auth, Engine, and Multi-Tenant Isolation
-├── render.yaml         # Full-stack Render deployment manifest
-└── pyproject.toml      # Python project configuration
+├── backend/
+│   ├── app/
+│   │   ├── engine/         # Pure-logic CPU & 5-stage pipeline engine (isa, assembler, cpu, pipeline, performance)
+│   │   ├── auth.py         # JWT authentication & bcrypt password hashing
+│   │   ├── database.py     # SQLAlchemy engine & session management
+│   │   ├── main.py         # FastAPI endpoints (/auth, /programs, /simulate, /tools, /instructor)
+│   │   ├── models.py       # Multi-tenant User, Program, RunResult models & starter program seeder
+│   │   └── schemas.py      # Pydantic request/response schemas
+│   ├── tests/              # Pytest unit & API integration suite
+│   └── requirements.txt    # Python backend dependencies
+└── frontend/
+    ├── src/
+    │   ├── components/     # Reusable Modal, Skeleton, and Toast components
+    │   ├── context/        # AuthContext & ToastContext
+    │   ├── pages/          # StudentDashboard (IDE shell), InstructorDashboard, LoginPage, SignupPage
+    │   │   └── tabs/       # BuildTab, OptimizeTab, LearnTab
+    │   ├── services/       # Typed REST API client
+    │   └── styles/         # Dark glassmorphism design system (theme.css)
+    ├── package.json
+    └── vite.config.ts      # Vite dev server with API proxy to port 8000
 ```
 
 ---
 
 ## Quick Start (Local Setup)
 
-### 1. Backend Service
+### 1. Backend API Server (Port 8000)
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn backend.main:app --reload --port 8000
+pip install -r backend/requirements.txt
+cd backend && uvicorn app.main:app --reload --port 8000
 ```
 
-### 2. Frontend Application
+### 2. Frontend Dev Server (Port 5173)
 ```bash
+cd frontend
 npm install
 npm run dev
 ```
@@ -80,9 +67,9 @@ Open **[http://localhost:5173](http://localhost:5173)** in your browser.
 
 ---
 
-## 🔑 Free Pre-Seeded Demo Accounts
+## 🔑 Pre-Seeded Demo Accounts
 
-Anyone can test the lab immediately using the pre-seeded accounts or the **1-Click Demo** buttons on the login screen:
+Use the **1-Click Demo** buttons on the login screen or sign in with:
 
 - **Student Account**: `demo@grasplab.dev` (Password: `demo1234`)
 - **Alternative Student**: `student@grasplab.dev` (Password: `student123`)
@@ -90,8 +77,12 @@ Anyone can test the lab immediately using the pre-seeded accounts or the **1-Cli
 
 ---
 
-## 🧪 Automated Testing
+## 🧪 Automated Verification
+
 ```bash
-.venv/bin/pytest -q
-npm run build
+# Run backend unit & API test suite
+cd backend && ../.venv/bin/pytest -q
+
+# Type-check and build production frontend bundle
+cd frontend && npm run build
 ```

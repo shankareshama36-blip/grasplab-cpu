@@ -106,6 +106,8 @@ export interface RunResult {
   run_id: number;
   program_id: number;
   cycles: number;
+  effective_cycles?: number;
+  pipeline_cycles?: number;
   instruction_count: number;
   cpi: number;
   performance: {
@@ -128,6 +130,21 @@ export interface RunResult {
     speedup: number;
     pipeline_efficiency_percent: number;
   };
+  forwarding_comparison?: {
+    forwarding_on: {
+      stalls: number;
+      flushes: number;
+      cpi: number;
+      pipeline_cycles: number;
+    };
+    forwarding_off: {
+      stalls: number;
+      flushes: number;
+      cpi: number;
+      pipeline_cycles: number;
+    };
+    stalls_saved: number;
+  };
   hazards: {
     data: number;
     control: number;
@@ -143,6 +160,7 @@ export interface RunResult {
 export interface InstructorProgram {
   id: number;
   name: string;
+  assembly_source?: string;
   isa_preset: string;
   status: string;
   created_at: string;

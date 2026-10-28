@@ -12,7 +12,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from app.db import get_db
-from app.models import User, Program, Run, init_db, hash_password, verify_password
+from app.models import User, Program, Run, init_db, seed_tenant_programs, hash_password, verify_password
 from app.auth import create_access_token, get_current_user
 from app.schemas import (
     UserSignupRequest,
@@ -177,6 +177,18 @@ def list_programs(
     return [p.to_dict() for p in programs]
 
 
+@app.post("/programs/seed-samples", status_code=status.HTTP_201_CREATED)
+def seed_sample_programs_endpoint(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    seeded = seed_tenant_programs(db, current_user.tenant_id)
+    db.commit()
+    for p in seeded:
+        db.refresh(p)
+    return [p.to_dict() for p in seeded]
+
+
 @app.post("/programs", status_code=status.HTTP_201_CREATED)
 def create_program(
     payload: ProgramCreateRequest,
@@ -275,8 +287,175 @@ def delete_program(
 
 
 # ---------------------------------------------------------
-# Engine Step & Run Execution Endpoints (Phase 3)
+# Engine Step & Run Execution Helpers & Endpoints (Phase 3)
 # ---------------------------------------------------------
+def _execute_step_logic(
+    source: str,
+    preset: str,
+    step_index: int,
+    forwarding_enabled: bool,
+    program_id: Optional[int] = None
+) -> Dict[str, Any]:
+    assembler = Assembler(preset=preset)
+    try:
+        instructions, _ = assembler.assemble(source)
+    except AssemblyError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    if not instructions:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No instructions to execute")
+
+    # Step single-cycle CPU
+    cpu = CPU(instructions)
+    target_step = max(1, step_index + 1)
+    cpu_state: Optional[CPUState] = None
+    actual_step = 0
+    for _ in range(target_step):
+        cpu_state = cpu.step()
+        actual_step += 1
+        if cpu.status == "HALTED":
+            break
+
+    # Step 5-stage pipeline
+    pipeline = PipelineEngine(instructions, forwarding_enabled=forwarding_enabled)
+    pipeline_state: Optional[PipelineState] = None
+    for _ in range(target_step):
+        pipeline_state = pipeline.step()
+        if pipeline.is_completed:
+            break
+
+    return {
+        "program_id": program_id,
+        "step_index": actual_step,
+        "cpu_state": cpu_state.to_dict() if cpu_state else None,
+        "pipeline_state": pipeline_state.to_dict() if pipeline_state else None
+    }
+
+
+def _execute_run_logic(
+    source: str,
+    preset: str,
+    forwarding: bool,
+    max_cycles: int
+) -> Dict[str, Any]:
+    assembler = Assembler(preset=preset)
+    try:
+        instructions, _ = assembler.assemble(source)
+    except AssemblyError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+    if not instructions:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No instructions in program")
+
+    # 1. Run Single-Cycle CPU
+    cpu = CPU(instructions)
+    cpu_history = cpu.run(max_cycles=max_cycles)
+    final_cpu_state = cpu.get_state()
+
+    # 2. Run 5-Stage Pipeline Engine (Requested mode)
+    pipeline = PipelineEngine(instructions, forwarding_enabled=forwarding)
+    pipeline_history = pipeline.run_all(max_cycles=max_cycles)
+
+    # Run alternate forwarding mode for instant comparison
+    alt_pipeline = PipelineEngine(instructions, forwarding_enabled=not forwarding)
+    alt_pipeline.run_all(max_cycles=max_cycles)
+
+    pipe_on = pipeline if forwarding else alt_pipeline
+    pipe_off = alt_pipeline if forwarding else pipeline
+
+    # 3. Calculate Accurate Pipelined Performance Metrics
+    penalty_cycles = pipeline.total_stalls + pipeline.total_flushes
+    effective_cycles = max(1, cpu.instruction_count + penalty_cycles)
+    cpi = PerformanceCalculator.calculate_cpi(effective_cycles, cpu.instruction_count)
+
+    perf_details = PerformanceCalculator.calculate_execution_time(
+        instruction_count=cpu.instruction_count,
+        cpi=cpi,
+        clock_mhz=1000.0
+    )
+    pipeline_comparison = PerformanceCalculator.compare_pipelines(
+        stages=5,
+        total_instructions=max(1, cpu.instruction_count),
+        hazard_stalls=penalty_cycles
+    )
+
+    cpi_on = PerformanceCalculator.calculate_cpi(
+        max(1, cpu.instruction_count + pipe_on.total_stalls + pipe_on.total_flushes),
+        cpu.instruction_count
+    )
+    cpi_off = PerformanceCalculator.calculate_cpi(
+        max(1, cpu.instruction_count + pipe_off.total_stalls + pipe_off.total_flushes),
+        cpu.instruction_count
+    )
+
+    hazards_summary = pipeline.cumulative_hazards.copy()
+    hazards_summary["total_stalls"] = pipeline.total_stalls
+    hazards_summary["total_flushes"] = pipeline.total_flushes
+
+    return {
+        "cycles": cpu.cycles,
+        "effective_cycles": effective_cycles,
+        "pipeline_cycles": len(pipeline_history),
+        "instruction_count": cpu.instruction_count,
+        "cpi": cpi,
+        "performance": perf_details,
+        "pipeline_comparison": pipeline_comparison,
+        "forwarding_comparison": {
+            "forwarding_on": {
+                "stalls": pipe_on.total_stalls,
+                "flushes": pipe_on.total_flushes,
+                "cpi": cpi_on,
+                "pipeline_cycles": len(pipe_on.history),
+            },
+            "forwarding_off": {
+                "stalls": pipe_off.total_stalls,
+                "flushes": pipe_off.total_flushes,
+                "cpi": cpi_off,
+                "pipeline_cycles": len(pipe_off.history),
+            },
+            "stalls_saved": max(0, pipe_off.total_stalls - pipe_on.total_stalls),
+        },
+        "hazards": hazards_summary,
+        "final_cpu_state": final_cpu_state.to_dict(),
+        "cpu_trace": [s.to_dict() for s in cpu_history],
+        "pipeline_trace": [p.to_dict() for p in pipeline_history]
+    }
+
+
+@app.post("/simulate/step")
+def simulate_step_standalone(
+    payload: StepRequest,
+    current_user: User = Depends(get_current_user)
+):
+    if not payload.assembly_source:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="assembly_source is required")
+    return _execute_step_logic(
+        source=payload.assembly_source,
+        preset=payload.isa_preset or "RISC-V",
+        step_index=payload.step_index or 0,
+        forwarding_enabled=True if payload.forwarding_enabled is None else payload.forwarding_enabled,
+        program_id=None
+    )
+
+
+@app.post("/simulate/run")
+def simulate_run_standalone(
+    payload: RunRequest,
+    current_user: User = Depends(get_current_user)
+):
+    if not payload.assembly_source:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="assembly_source is required")
+    res = _execute_run_logic(
+        source=payload.assembly_source,
+        preset=payload.isa_preset or "RISC-V",
+        forwarding=True if payload.forwarding_enabled is None else payload.forwarding_enabled,
+        max_cycles=payload.max_cycles or 250
+    )
+    res["run_id"] = 0
+    res["program_id"] = 0
+    return res
+
+
 @app.post("/programs/{program_id}/step")
 def step_program(
     program_id: int,
@@ -292,43 +471,14 @@ def step_program(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Program not found")
 
     source = payload.assembly_source if payload.assembly_source is not None else prog.assembly_source
-    preset = prog.isa_preset or "RISC-V"
-
-    assembler = Assembler(preset=preset)
-    try:
-        instructions, _ = assembler.assemble(source)
-    except AssemblyError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-
-    if not instructions:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No instructions to execute")
-
-    # Step single-cycle CPU
-    cpu = CPU(instructions)
-    target_step = max(1, (payload.step_index or 0) + 1)
-    cpu_state: Optional[CPUState] = None
-    for _ in range(target_step):
-        cpu_state = cpu.step()
-        if cpu.status == "HALTED":
-            break
-
-    # Step 5-stage pipeline
-    pipeline = PipelineEngine(
-        instructions,
-        forwarding_enabled=True if payload.forwarding_enabled is None else payload.forwarding_enabled
+    preset = payload.isa_preset or prog.isa_preset or "RISC-V"
+    return _execute_step_logic(
+        source=source,
+        preset=preset,
+        step_index=payload.step_index or 0,
+        forwarding_enabled=True if payload.forwarding_enabled is None else payload.forwarding_enabled,
+        program_id=prog.id
     )
-    pipeline_state: Optional[PipelineState] = None
-    for _ in range(target_step):
-        pipeline_state = pipeline.step()
-        if pipeline.is_completed:
-            break
-
-    return {
-        "program_id": prog.id,
-        "step_index": target_step,
-        "cpu_state": cpu_state.to_dict() if cpu_state else None,
-        "pipeline_state": pipeline_state.to_dict() if pipeline_state else None
-    }
 
 
 @app.post("/programs/{program_id}/run")
@@ -346,70 +496,34 @@ def run_program(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Program not found")
 
     source = payload.assembly_source if payload.assembly_source is not None else prog.assembly_source
-    preset = prog.isa_preset or "RISC-V"
+    preset = payload.isa_preset or prog.isa_preset or "RISC-V"
     forwarding = True if payload.forwarding_enabled is None else payload.forwarding_enabled
-    max_cycles = payload.max_cycles or 200
+    max_cycles = payload.max_cycles or 250
 
-    assembler = Assembler(preset=preset)
-    try:
-        instructions, _ = assembler.assemble(source)
-    except AssemblyError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-
-    if not instructions:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No instructions in program")
-
-    # 1. Run Single-Cycle CPU
-    cpu = CPU(instructions)
-    cpu_history = cpu.run(max_cycles=max_cycles)
-    final_cpu_state = cpu.get_state()
-
-    # 2. Run 5-Stage Pipeline Engine
-    pipeline = PipelineEngine(instructions, forwarding_enabled=forwarding)
-    pipeline_history = pipeline.run_all(max_cycles=max_cycles)
-
-    # 3. Calculate Performance Metrics
-    cpi = PerformanceCalculator.calculate_cpi(cpu.cycles, cpu.instruction_count)
-    perf_details = PerformanceCalculator.calculate_execution_time(
-        instruction_count=cpu.instruction_count,
-        cpi=cpi,
-        clock_mhz=1000.0
-    )
-    pipeline_comparison = PerformanceCalculator.compare_pipelines(
-        stages=5,
-        total_instructions=max(1, cpu.instruction_count),
-        hazard_stalls=pipeline.total_stalls
+    res = _execute_run_logic(
+        source=source,
+        preset=preset,
+        forwarding=forwarding,
+        max_cycles=max_cycles
     )
 
-    hazards_summary = pipeline.cumulative_hazards.copy()
-    hazards_summary["total_stalls"] = pipeline.total_stalls
-    hazards_summary["total_flushes"] = pipeline.total_flushes
+    run_id = 0
+    if payload.record_run is not False:
+        new_run = Run(
+            tenant_id=current_user.tenant_id,
+            program_id=prog.id,
+            cycles=res["cycles"],
+            cpi=res["cpi"],
+            hazards_json=json.dumps(res["hazards"])
+        )
+        db.add(new_run)
+        db.commit()
+        db.refresh(new_run)
+        run_id = new_run.id
 
-    # Persist the Run record
-    new_run = Run(
-        tenant_id=current_user.tenant_id,
-        program_id=prog.id,
-        cycles=cpu.cycles,
-        cpi=cpi,
-        hazards_json=json.dumps(hazards_summary)
-    )
-    db.add(new_run)
-    db.commit()
-    db.refresh(new_run)
-
-    return {
-        "run_id": new_run.id,
-        "program_id": prog.id,
-        "cycles": cpu.cycles,
-        "instruction_count": cpu.instruction_count,
-        "cpi": cpi,
-        "performance": perf_details,
-        "pipeline_comparison": pipeline_comparison,
-        "hazards": hazards_summary,
-        "final_cpu_state": final_cpu_state.to_dict(),
-        "cpu_trace": [s.to_dict() for s in cpu_history],
-        "pipeline_trace": [p.to_dict() for p in pipeline_history]
-    }
+    res["run_id"] = run_id
+    res["program_id"] = prog.id
+    return res
 
 
 # ---------------------------------------------------------
@@ -460,6 +574,7 @@ def instructor_overview(
         results.append({
             "id": p.id,
             "name": p.name,
+            "assembly_source": p.assembly_source,
             "isa_preset": p.isa_preset,
             "status": p.status,
             "created_at": p.created_at.isoformat() if p.created_at else None,
@@ -473,15 +588,21 @@ def instructor_overview(
 
 
 # ---------------------------------------------------------
-# Static Frontend Serving (for Docker / Production)
+# Static Frontend Serving (for Docker / Production / Local)
 # ---------------------------------------------------------
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
-if not os.path.isdir(static_dir):
-    static_dir = os.path.join(os.getcwd(), "static")
-if os.path.isdir(static_dir):
+_base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_repo_root = os.path.dirname(_base_dir)
+_candidate_static_dirs = [
+    os.path.join(_base_dir, "static"),
+    os.path.join(os.getcwd(), "static"),
+    os.path.join(_repo_root, "frontend", "dist"),
+]
+static_dir = next((d for d in _candidate_static_dirs if os.path.isdir(d)), "")
+
+if static_dir and os.path.isdir(static_dir):
     assets_dir = os.path.join(static_dir, "assets")
     if os.path.isdir(assets_dir):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")

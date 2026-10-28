@@ -4,7 +4,6 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { StudentDashboard } from './pages/StudentDashboard';
-import { InstructorDashboard } from './pages/InstructorDashboard';
 import { Skeleton } from './components/common/Skeleton';
 import './styles/theme.css';
 
@@ -62,11 +61,7 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Authenticated State Router
-  if (user.role === 'Instructor') {
-    return <InstructorDashboard />;
-  }
-
+  // Unified Workspace Router (supports both Student Lab & Instructor Analytics views)
   return <StudentDashboard />;
 };
 

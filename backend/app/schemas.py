@@ -41,6 +41,7 @@ class ProgramUpdateRequest(BaseModel):
 
 class StepRequest(BaseModel):
     assembly_source: Optional[str] = None
+    isa_preset: Optional[str] = None
     step_index: Optional[int] = 0
     forwarding_enabled: Optional[bool] = True
     cpu_state: Optional[Dict[str, Any]] = None
@@ -48,5 +49,7 @@ class StepRequest(BaseModel):
 
 class RunRequest(BaseModel):
     assembly_source: Optional[str] = None
+    isa_preset: Optional[str] = None
     forwarding_enabled: Optional[bool] = True
     max_cycles: Optional[int] = 500
+    record_run: Optional[bool] = True
